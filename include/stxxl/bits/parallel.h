@@ -123,6 +123,33 @@ namespace parallel
 #endif
     }
 
+/** @brief Stable multi-way merging dispatcher.
+ *  @param seqs_begin Begin iterator of iterator pair input sequence.
+ *  @param seqs_end End iterator of iterator pair input sequence.
+ *  @param target Begin iterator out output sequence.
+ *  @param comp Comparator.
+ *  @param length Maximum length to merge.
+ *  @return End iterator of output sequence. */
+    template <typename RandomAccessIteratorPairIterator,
+              typename RandomAccessIterator3, typename DiffType, typename Comparator>
+    RandomAccessIterator3
+    multiway_merge_stable(RandomAccessIteratorPairIterator seqs_begin,
+                   RandomAccessIteratorPairIterator seqs_end,
+                   RandomAccessIterator3 target,
+                   Comparator comp,
+                   DiffType length)
+    {
+#if defined(_GLIBCXX_PARALLEL) && ((__GNUC__ * 10000 + __GNUC_MINOR__ * 100) >= 40400)
+        return __gnu_parallel::stable_multiway_merge(seqs_begin, seqs_end, target, length, comp);
+#elif defined(_GLIBCXX_PARALLEL)
+        return __gnu_parallel::stable_multiway_merge(seqs_begin, seqs_end, target, comp, length);
+#elif defined(__MCSTL__)
+        return mcstl::stable_multiway_merge(seqs_begin, seqs_end, target, comp, length, false);
+#else
+        assert(0);
+        abort();
+#endif
+    }
 #endif
 }
 
