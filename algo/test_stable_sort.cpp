@@ -13,6 +13,7 @@
 //! \example algo/test_stable_sort.cpp
 //! This is an example of how to use \c stxxl::sort() algorithm
 
+#include <iostream>
 #include <stxxl/mng>
 #include <stxxl/sort>
 #include <stxxl/vector>
@@ -23,7 +24,7 @@
 struct my_type
 {
     typedef stxxl::int64 key_type;
-    typedef stxxl::uint64 load_type;
+    typedef stxxl::int64 load_type;
 
     key_type _key;
     load_type _load;
@@ -32,7 +33,7 @@ struct my_type
     {
         return _key;
     }
-    key_type load() const
+    load_type load() const
     {
         return _load;
     }
@@ -108,7 +109,7 @@ int main()
     unsigned memory_to_use = 128 * 1024 * 1024;
     typedef stxxl::vector<my_type> vector_type;
     const stxxl::int64 n_records =
-        stxxl::int64(384) * stxxl::int64(1024 * 1024) / sizeof(my_type);
+        stxxl::int64(385) * stxxl::int64(1024 * 1024) / sizeof(my_type);
     vector_type v(n_records);
 
     {
@@ -116,7 +117,7 @@ int main()
     STXXL_MSG("Filling vector..., input size =" << v.size());
     for (vector_type::size_type i = 0; i < v.size(); i++)
     {
-        v[i]._key = 1 + (rnd() % 0x10000);
+        v[i]._key = 1 + (rnd() % 0x1000000);
         v[i]._load = i;
     }
 
@@ -138,7 +139,7 @@ int main()
     STXXL_MSG("Filling vector..., input size =" << v.size());
     for (vector_type::size_type i = 0; i < v.size(); i++)
     {
-        v[i]._key = 1 + (rnd() % 0x10000);
+        v[i]._key = 1 + (rnd() % 0x1000000);
         v[i]._load = i;
     }
 
@@ -153,6 +154,12 @@ int main()
 
     STXXL_MSG("Checking stable order...");
     STXXL_MSG(((stxxl::is_sorted(v.begin(), v.end(), stable_cmp())) ? "OK" : "WRONG"));
+
+    for (vector_type::size_type i = 0; i < 50; i++)
+    {
+        std::cout << v[i].key() << " " << v[i].load() << std::endl;
+    }
+
     }
 
     STXXL_MSG("Done, output size=" << v.size());

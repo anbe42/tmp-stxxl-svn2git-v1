@@ -512,7 +512,7 @@ namespace sort_local
 
                     ptrdiff_t output_size = (std::min)(less_equal_than_min_last, rest);         //at most rest elements
 
-                    STXXL_VERBOSE1("before merge" << output_size);
+                    STXXL_VERBOSE0("before merge " << output_size);
 
                     if(stable)
                         stxxl::parallel::multiway_merge_stable(seqs.begin(), seqs.end(), out_buffer->end() - rest, cmp, output_size);
@@ -520,7 +520,7 @@ namespace sort_local
                         stxxl::parallel::multiway_merge(seqs.begin(), seqs.end(), out_buffer->end() - rest, cmp, output_size);
                     //sequence iterators are progressed appropriately
 
-                    STXXL_VERBOSE1("after merge");
+                    STXXL_VERBOSE0("after merge");
 
                     (*out_run)[j].value = (*out_buffer)[0];                     //save smallest value
 
@@ -589,6 +589,7 @@ namespace sort_local
             for (i = 0; i < out_run_size; ++i)
             {
                 //stable variant fails here
+                assert(!stable);
                 losers.multi_merge(out_buffer->elem);
                 (*out_run)[i].value = *(out_buffer->elem);
 
