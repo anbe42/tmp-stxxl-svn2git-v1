@@ -27,6 +27,11 @@ test_sort.$(EXEEXT): test_sort.cpp $(DEPENDENCIES)
 	$(COMPILER) $(STXXL_COMPILER_OPTIONS) -c test_sort.cpp -DSTXXL_VERBOSE_LEVEL=0
 	$(LINKER)  test_sort.$(OBJEXT) $(OUT)test_sort.$(EXEEXT) $(STXXL_LINKER_OPTIONS)
 
+test_stable_sort: test_stable_sort.$(EXEEXT)
+test_stable_sort.$(EXEEXT): test_stable_sort.cpp $(DEPENDENCIES)
+	$(COMPILER) $(STXXL_COMPILER_OPTIONS) -c test_stable_sort.cpp -DSTXXL_VERBOSE_LEVEL=0
+	$(LINKER)  test_stable_sort.$(OBJEXT) $(OUT)test_stable_sort.$(EXEEXT) $(STXXL_LINKER_OPTIONS)
+
 test_sort_all_parameters: test_sort_all_parameters.$(EXEEXT)
 test_sort_all_parameters.$(EXEEXT): test_sort_all_parameters.cpp # takes long to compile
 	$(COMPILER) $(STXXL_COMPILER_OPTIONS) -c test_sort_all_parameters.cpp 
