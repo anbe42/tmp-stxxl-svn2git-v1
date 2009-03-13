@@ -446,7 +446,7 @@ namespace sort_local
 //If parallelism is activated, one can still fall back to the
 //native merge routine by setting stxxl::SETTINGS::native_merge= true, //otherwise, it is used anyway.
 
-        if (do_parallel_merge())
+        if (do_parallel_merge() || stable)
         {
 #if STXXL_PARALLEL_MULTIWAY_MERGE
 
@@ -469,6 +469,7 @@ namespace sort_local
             value_type last_elem = cmp.min_value();
  #endif
 
+            STXXL_VERBOSE1("out_run_size " << out_run_size);
             for (int_type j = 0; j < out_run_size; ++j)                 //for the whole output run, out_run_size is in blocks
             {
                 diff_type rest = block_type::size;                      //elements still to merge for this output block
@@ -508,11 +509,9 @@ namespace sort_local
                         less_equal_than_min_last += position - seqs[i].first;
                     }
 
-                    STXXL_VERBOSE1("finished loop");
-
                     ptrdiff_t output_size = (std::min)(less_equal_than_min_last, rest);         //at most rest elements
 
-                    STXXL_VERBOSE0("before merge " << output_size);
+                    STXXL_VERBOSE1("before merge " << output_size);
 
                     if(stable)
                         stxxl::parallel::multiway_merge_stable(seqs.begin(), seqs.end(), out_buffer->end() - rest, cmp, output_size);
@@ -520,13 +519,11 @@ namespace sort_local
                         stxxl::parallel::multiway_merge(seqs.begin(), seqs.end(), out_buffer->end() - rest, cmp, output_size);
                     //sequence iterators are progressed appropriately
 
-                    STXXL_VERBOSE0("after merge");
+                    STXXL_VERBOSE1("after merge");
 
                     (*out_run)[j].value = (*out_buffer)[0];                     //save smallest value
 
                     rest -= output_size;
-
-                    STXXL_VERBOSE1("so long");
 
                     for (seqs_size_type i = 0; i < seqs.size(); i++)
                     {
