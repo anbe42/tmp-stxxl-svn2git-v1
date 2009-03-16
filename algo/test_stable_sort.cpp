@@ -113,58 +113,82 @@ int main()
     vector_type v(n_records);
 
     {
-    stxxl::random_number32 rnd;
-    STXXL_MSG("Filling vector with random numbers..., input size =" << v.size());
-    for (vector_type::size_type i = 0; i < v.size(); i++)
-    {
-        v[i]._key = 1 + (rnd() % 0x1000000);
-        v[i]._load = i;
+        stxxl::random_number32 rnd;
+        STXXL_MSG("Filling vector with random numbers..., input size =" << v.size());
+        for (vector_type::size_type i = 0; i < v.size(); i++)
+        {
+            v[i]._key = 1 + (rnd() % 0x1000000);
+            v[i]._load = i;
+        }
+
+        STXXL_MSG("Checking stable order...");
+        STXXL_MSG(((stxxl::is_sorted(v.begin(), v.end(), stable_cmp())) ? "OK" : "WRONG"));
+
+        STXXL_MSG("Stable sorting...");
+        stxxl::sort(v.begin(), v.end(), cmp(), memory_to_use, true);
+
+        STXXL_MSG("Checking order...");
+        STXXL_MSG(((stxxl::is_sorted(v.begin(), v.end())) ? "OK" : "WRONG"));
+
+        STXXL_MSG("Checking stable order...");
+        STXXL_MSG(((stxxl::is_sorted(v.begin(), v.end(), stable_cmp())) ? "OK" : "WRONG"));
+
+        for (vector_type::size_type i = 0; i < 20; i++)
+        {
+            std::cout << v[i].key() << " " << v[i].load() << std::endl;
+        }
     }
 
-    STXXL_MSG("Checking stable order...");
-    STXXL_MSG(((stxxl::is_sorted(v.begin(), v.end(), stable_cmp())) ? "OK" : "WRONG"));
-
-    STXXL_MSG("Stable sorting...");
-    stxxl::sort(v.begin(), v.end(), cmp(), memory_to_use, true);
-
-    STXXL_MSG("Checking order...");
-    STXXL_MSG(((stxxl::is_sorted(v.begin(), v.end())) ? "OK" : "WRONG"));
-
-    STXXL_MSG("Checking stable order...");
-    STXXL_MSG(((stxxl::is_sorted(v.begin(), v.end(), stable_cmp())) ? "OK" : "WRONG"));
-
-    for (vector_type::size_type i = 0; i < 20; i++)
     {
-        std::cout << v[i].key() << " " << v[i].load() << std::endl;
+        STXXL_MSG("Filling vector with 1s..., input size =" << v.size());
+        for (vector_type::size_type i = 0; i < v.size(); i++)
+        {
+            v[i]._key = 1;
+            v[i]._load = i;
+        }
+
+        STXXL_MSG("Checking stable order...");
+        STXXL_MSG(((stxxl::is_sorted(v.begin(), v.end(), stable_cmp())) ? "OK" : "WRONG"));
+
+        STXXL_MSG("Stable sorting...");
+        stxxl::sort(v.begin(), v.end(), cmp(), memory_to_use, true);
+
+        STXXL_MSG("Checking order...");
+        STXXL_MSG(((stxxl::is_sorted(v.begin(), v.end())) ? "OK" : "WRONG"));
+
+        STXXL_MSG("Checking stable order...");
+        STXXL_MSG(((stxxl::is_sorted(v.begin(), v.end(), stable_cmp())) ? "OK" : "WRONG"));
+
+        for (vector_type::size_type i = 0; i < 20; i++)
+        {
+            std::cout << v[i].key() << " " << v[i].load() << std::endl;
+        }
     }
 
-    }
-
     {
-    STXXL_MSG("Filling vector with 1s..., input size =" << v.size());
-    for (vector_type::size_type i = 0; i < v.size(); i++)
-    {
-        v[i]._key = 1;
-        v[i]._load = i;
-    }
+        STXXL_MSG("Filling vector with descending..., input size =" << v.size());
+        for (vector_type::size_type i = 0; i < v.size(); i++)
+        {
+            v[i]._key = v.size() + 1 - i;
+            v[i]._load = i;
+        }
 
-    STXXL_MSG("Checking stable order...");
-    STXXL_MSG(((stxxl::is_sorted(v.begin(), v.end(), stable_cmp())) ? "OK" : "WRONG"));
+        STXXL_MSG("Checking stable order...");
+        STXXL_MSG(((stxxl::is_sorted(v.begin(), v.end(), stable_cmp())) ? "OK" : "WRONG"));
 
-    STXXL_MSG("Stable sorting...");
-    stxxl::sort(v.begin(), v.end(), cmp(), memory_to_use, true);
+        STXXL_MSG("Stable sorting...");
+        stxxl::sort(v.begin(), v.end(), cmp(), memory_to_use, true);
 
-    STXXL_MSG("Checking order...");
-    STXXL_MSG(((stxxl::is_sorted(v.begin(), v.end())) ? "OK" : "WRONG"));
+        STXXL_MSG("Checking order...");
+        STXXL_MSG(((stxxl::is_sorted(v.begin(), v.end())) ? "OK" : "WRONG"));
 
-    STXXL_MSG("Checking stable order...");
-    STXXL_MSG(((stxxl::is_sorted(v.begin(), v.end(), stable_cmp())) ? "OK" : "WRONG"));
+        STXXL_MSG("Checking stable order...");
+        STXXL_MSG(((stxxl::is_sorted(v.begin(), v.end(), stable_cmp())) ? "OK" : "WRONG"));
 
-    for (vector_type::size_type i = 0; i < 20; i++)
-    {
-        std::cout << v[i].key() << " " << v[i].load() << std::endl;
-    }
-
+        for (vector_type::size_type i = 0; i < 20; i++)
+        {
+            std::cout << v[i].key() << " " << v[i].load() << std::endl;
+        }
     }
 
     return 0;
