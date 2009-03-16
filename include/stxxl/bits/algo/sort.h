@@ -17,6 +17,7 @@
 
 #include <list>
 #include <functional>
+#include <map>
 
 #include <stxxl/bits/mng/mng.h>
 #include <stxxl/bits/common/rand.h>
@@ -389,19 +390,22 @@ namespace sort_local
         typedef run_cursor2<block_type, prefetcher_type> run_cursor_type;
         typedef run_cursor2_cmp<block_type, prefetcher_type, value_cmp> run_cursor2_cmp_type;
 
-        int_type i;
         run_type consume_seq(out_run->size());
 
         int_type * prefetch_seq = new int_type[out_run->size()];
+        int_type current_block = 0;
 
-        typename run_type::iterator copy_start = consume_seq.begin();
-        for (i = 0; i < nruns; i++)
+        typename run_type::iterator consume_seq_current = consume_seq.begin();
+        std::map<bid_type, int_type> seq_of_block;  //rank of block to seq number
+        for (int_type i = 0; i < nruns; i++)
         {
             // TODO: try to avoid copy
-            copy_start = std::copy(
+            consume_seq_current = std::copy(
                 in_runs[i]->begin(),
                 in_runs[i]->end(),
-                copy_start);
+                consume_seq_current);
+            for(typename run_type::iterator b = in_runs[i]->begin(); b != in_runs[i]->end(); ++b)
+                seq_of_block[*b] = i;
         }
 
         std::stable_sort(consume_seq.begin(), consume_seq.end(),
@@ -427,7 +431,7 @@ namespace sort_local
             n_opt_prefetch_buffers,
             disks_number);
 #else
-        for (i = 0; i < out_run->size(); i++)
+        for (int_type i = 0; i < out_run->size(); i++)
             prefetch_seq[i] = i;
 
 #endif
@@ -456,13 +460,22 @@ namespace sort_local
             typedef std::pair<typename block_type::iterator, typename block_type::iterator> sequence;
             typedef typename std::vector<sequence>::size_type seqs_size_type;
             std::vector<sequence> seqs(nruns);
-            std::vector<block_type *> buffers(nruns);
+            std::vector<std::queue<block_type *> > seq_buffers(nruns);   //blocks of sequence
+
+            for (int_type i = 0; i < nruns; i++)                //pull first blocks
+            {
+                block_type* buffer = prefetcher.pull_block();
+                int seq_number = seq_of_block[consume_seq[current_block++]];
+                seq_buffers[seq_number].push(buffer);
+                STXXL_VERBOSE1("pull block   " << buffer << " " << seq_number << " " << seq_buffers[seq_number].size());
+            }
 
             for (int_type i = 0; i < nruns; i++)                //initialize sequences
             {
-                buffers[i] = prefetcher.pull_block();           //get first block of each run
-                seqs[i] = std::make_pair(buffers[i]->begin(), buffers[i]->end());
-                //this memory location stays the same, only the data is exchanged
+                if(!seq_buffers[i].empty())
+                    seqs[i] = std::make_pair(seq_buffers[i].front()->begin(), seq_buffers[i].front()->end());
+                else
+                    seqs[i] = std::make_pair<typename block_type::iterator, typename block_type::iterator>(NULL, NULL);
             }
 
  #ifdef STXXL_CHECK_ORDER_IN_SORTS
@@ -475,7 +488,7 @@ namespace sort_local
                 diff_type rest = block_type::size;                      //elements still to merge for this output block
 
                 STXXL_VERBOSE1("output block " << j);
-                do {
+                do {    //for each block of output
                     value_type * min_last_element = NULL;               //no element found yet
                     diff_type total_size = 0;
 
@@ -493,7 +506,8 @@ namespace sort_local
                         STXXL_VERBOSE1("last " << *(seqs[i].second - 1) << " block size " << (seqs[i].second - seqs[i].first));
                     }
 
-                    assert(min_last_element != NULL);           //there must be some element
+                    if(total_size == 0)
+                        break;
 
                     STXXL_VERBOSE1("min_last_element " << min_last_element << " total size " << total_size + (block_type::size - rest));
 
@@ -525,25 +539,33 @@ namespace sort_local
 
                     rest -= output_size;
 
+                    //gather consumed blocks
+                    std::vector<block_type*> consumed_blocks;
                     for (seqs_size_type i = 0; i < seqs.size(); i++)
                     {
-                        if (seqs[i].first == seqs[i].second)                                    //run empty
+                        if (seqs[i].first == seqs[i].second && !seq_buffers[i].empty())            //run i has run empty
                         {
-                            if (prefetcher.block_consumed(buffers[i]))
-                            {
-                                seqs[i].first = buffers[i]->begin();                            //reset iterator
-                                seqs[i].second = buffers[i]->end();
-                                STXXL_VERBOSE1("block ran empty " << i);
-                            }
+                            consumed_blocks.push_back(seq_buffers[i].front());
+
+                            seq_buffers[i].pop();
+                            if(!seq_buffers[i].empty())
+                                seqs[i] = std::make_pair(seq_buffers[i].front()->begin(), seq_buffers[i].front()->end());
                             else
-                            {
-                                seqs.erase(seqs.begin() + i);                                   //remove this sequence
-                                buffers.erase(buffers.begin() + i);
-                                STXXL_VERBOSE1("seq removed " << i);
-                            }
+                                seqs[i] = std::make_pair<typename block_type::iterator, typename block_type::iterator>(NULL, NULL);
                         }
                     }
-                } while (rest > 0 && seqs.size() > 0);
+
+                    //refill consumed blocks
+                    while(!consumed_blocks.empty() && prefetcher.block_consumed(consumed_blocks.back()))
+                    {
+                        int seq_number = seq_of_block[consume_seq[current_block++]];
+                        seq_buffers[seq_number].push(consumed_blocks.back());
+                        seqs[seq_number] = std::make_pair(seq_buffers[seq_number].front()->begin(), seq_buffers[seq_number].front()->end());
+                        STXXL_VERBOSE1("pull block   " << consumed_blocks.back() << " " << seq_number << " " << seq_buffers[seq_number].size());
+
+                        consumed_blocks.pop_back();
+                    }
+                } while (rest > 0);
 
  #ifdef STXXL_CHECK_ORDER_IN_SORTS
                 if (!stxxl::is_sorted(out_buffer->begin(), out_buffer->end(), cmp))
@@ -583,7 +605,7 @@ namespace sort_local
             value_type last_elem = cmp.min_value();
 #endif
 
-            for (i = 0; i < out_run_size; ++i)
+            for (int_type i = 0; i < out_run_size; ++i)
             {
                 //stable variant fails here
                 assert(!stable);
@@ -611,7 +633,7 @@ namespace sort_local
         delete[] prefetch_seq;
 
         block_manager * bm = block_manager::get_instance();
-        for (i = 0; i < nruns; ++i)
+        for (int_type i = 0; i < nruns; ++i)
         {
             unsigned_type sz = in_runs[i]->size();
             for (unsigned_type j = 0; j < sz; ++j)
