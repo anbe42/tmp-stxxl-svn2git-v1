@@ -114,6 +114,15 @@ bool operator != (const BID<blk_sz> & a, const BID<blk_sz> & b)
     return (a.storage != b.storage) || (a.offset != b.offset) || (a.size != b.size);
 }
 
+//arbitrary total order for map
+template <unsigned blk_sz>
+bool operator < (const BID<blk_sz> & a, const BID<blk_sz> & b)
+{
+    return (a.storage < b.storage)
+            || ((a.storage == b.storage) && (a.offset < b.offset))
+            || ((a.storage == b.storage) && (a.offset == b.offset) && (a.size < b.size));
+}
+
 
 template <unsigned blk_sz>
 std::ostream & operator << (std::ostream & s, const BID<blk_sz> & bid)
