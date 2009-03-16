@@ -393,7 +393,6 @@ namespace sort_local
         run_type consume_seq(out_run->size());
 
         int_type * prefetch_seq = new int_type[out_run->size()];
-        int_type current_block = 0;
 
         typename run_type::iterator consume_seq_current = consume_seq.begin();
         std::map<bid_type, int_type> seq_of_block;  //rank of block to seq number
@@ -459,6 +458,7 @@ namespace sort_local
             typedef stxxl::int64 diff_type;
             typedef std::pair<typename block_type::iterator, typename block_type::iterator> sequence;
             typedef typename std::vector<sequence>::size_type seqs_size_type;
+            int_type current_block = 0;
             std::vector<sequence> seqs(nruns);
             std::vector<std::queue<block_type *> > seq_buffers(nruns);   //blocks of sequence
 
