@@ -144,7 +144,7 @@ namespace parallel
 #elif defined(_GLIBCXX_PARALLEL)
         return __gnu_parallel::stable_multiway_merge(seqs_begin, seqs_end, target, comp, length);
 #elif defined(__MCSTL__)
-        return mcstl::stable_multiway_merge(seqs_begin, seqs_end, target, comp, length, false);
+        return mcstl::multiway_merge(seqs_begin, seqs_end, target, comp, length, true);
 #else
         assert(0);
         abort();
