@@ -24,6 +24,7 @@ test_stable_ksort_all_parameters.$o:	CPPFLAGS += -DSTXXL_VERBOSE_STABLE_KSORT=ST
 ifeq ($(strip $(USE_MCSTL)),yes)
 # ICPC 11.0: internal error: 0_1374 (issue 539748)
 $(call reduce_optimization,3,0,test_sort,Version_11.0,any,any)
+$(call reduce_optimization,3,0,test_stable_sort,Version_11.0,any,any)
 $(call reduce_optimization,3,0,test_ksort,Version_11.0,any,any)
 $(call reduce_optimization,3,0,sort_file,Version_11.0,any,any)
 $(call reduce_optimization,3,0,test_parallel_sort,Version_11.0,any,any)
