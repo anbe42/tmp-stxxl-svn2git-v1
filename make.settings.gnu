@@ -31,7 +31,7 @@ USE_PMODE	?= no	# will be overridden from main Makefile
 USE_MCSTL	?= no	# will be overridden from main Makefile
 USE_ICPC	?= no	# will be overridden from main Makefile
 
-STXXL_ROOT	?= $(HOME)/work/stxxl
+STXXL_ROOT	?= $(TOPDIR)
 
 ifeq ($(strip $(USE_ICPC)),yes)
 COMPILER_ICPC	?= icpc
@@ -59,7 +59,7 @@ COMPILER	?= $(COMPILER_GCC)
 LINKER		?= $(COMPILER)
 OPT_LEVEL	?= 3
 OPT		?= -O$(OPT_LEVEL) # compiler optimization level
-WARNINGS	?= -W -Wall
+WARNINGS	?= -W -Wall -Woverloaded-virtual
 DEBUG		?= # put here -g option to include the debug information into the binaries
 
 LIBNAME		?= stxxl
@@ -140,7 +140,7 @@ ifeq (,$(strip $(wildcard $(CURDIR)/make.settings.local)))
 ifneq (,$(strip $(wildcard $(CURDIR)/include/stxxl.h)))
 $(warning *** WARNING: trying autoconfiguration for STXXL_ROOT=$(CURDIR:$(HOME)%=$$(HOME)%))
 $(warning *** WARNING: you did not have a make.settings.local file -- creating ...)
-$(shell echo 'STXXL_ROOT	 = $(CURDIR:$(HOME)%=$$(HOME)%)' >> $(CURDIR)/make.settings.local)
+$(shell echo -e '\043STXXL_ROOT	 = $(CURDIR:$(HOME)%=$$(HOME)%)' >> $(CURDIR)/make.settings.local)
 MCSTL_ROOT	?= $(HOME)/work/mcstl
 $(shell echo -e '\043MCSTL_ROOT	 = $(MCSTL_ROOT:$(HOME)%=$$(HOME)%)' >> $(CURDIR)/make.settings.local)
 $(shell echo -e '\043COMPILER_GCC	 = g++-4.2.3' >> $(CURDIR)/make.settings.local)
@@ -299,14 +299,16 @@ HEADER_FILES_IO		+= file.h file_request_basic.h
 HEADER_FILES_IO		+= ufs_file_base.h syscall_file.h mmap_file.h simdisk_file.h
 HEADER_FILES_IO		+= wfs_file_base.h wincall_file.h
 HEADER_FILES_IO		+= boostfd_file.h mem_file.h fileperblock_file.h
+HEADER_FILES_IO		+= wbtl_file.h
 
 HEADER_FILES_MNG	+= adaptor.h block_prefetcher.h
 HEADER_FILES_MNG	+= buf_istream.h buf_ostream.h buf_writer.h mng.h
 HEADER_FILES_MNG	+= write_pool.h prefetch_pool.h
 HEADER_FILES_MNG	+= block_alloc_interleaved.h
 
-HEADER_FILES_CONTAINERS	+= pager.h stack.h vector.h priority_queue.h queue.h
-HEADER_FILES_CONTAINERS	+= map.h deque.h
+HEADER_FILES_CONTAINERS	+= pager.h stack.h vector.h priority_queue.h
+HEADER_FILES_CONTAINERS	+= pq_helpers.h pq_mergers.h pq_ext_merger.h
+HEADER_FILES_CONTAINERS	+= pq_losertree.h queue.h map.h deque.h
 
 HEADER_FILES_CONTAINERS_BTREE	+= btree.h iterator_map.h leaf.h node_cache.h
 HEADER_FILES_CONTAINERS_BTREE	+= root_node.h node.h btree_pager.h iterator.h
@@ -343,7 +345,7 @@ bin	?= $(strip $(EXEEXT))
 
 #### COMPILE/LINK RULES ###########################################
 
-DEPS_MAKEFILES	:= $(wildcard ../Makefile.subdir.gnu ../make.settings ../make.settings.local GNUmakefile Makefile.local)
+DEPS_MAKEFILES	:= $(wildcard $(TOPDIR)/Makefile.subdir.gnu $(TOPDIR)/make.settings $(TOPDIR)/make.settings.local GNUmakefile Makefile Makefile.common Makefile.local)
 %.$o: %.cpp $(DEPS_MAKEFILES)
 	@$(RM) $@ $*.$d
 	$(COMPILER) $(STXXL_COMPILER_OPTIONS) -MD -MF $*.$dT -c $(OUTPUT_OPTION) $< && mv $*.$dT $*.$d
@@ -358,6 +360,9 @@ LINK_STXXL	 = $(LINKER) $1 $(STXXL_LINKER_OPTIONS) -o $@
 
 
 # last resort rules to ignore header files missing due to renames etc.
+$(STXXL_ROOT)/include/%::
+	@echo "MISSING HEADER: '$@' (ignored)"
+
 %.h::
 	@echo "MISSING HEADER: '$@' (ignored)"
 

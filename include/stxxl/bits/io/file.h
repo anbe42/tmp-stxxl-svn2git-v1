@@ -124,6 +124,7 @@ public:
     //! \return \c request_ptr object, that can be used to track the status of the operation
     virtual request_ptr aread(void * buffer, offset_type pos, size_type bytes,
                               const completion_handler & on_cmpl) = 0;
+
     //! \brief Schedules asynchronous write request to the file
     //! \param buffer pointer to memory buffer to write from
     //! \param pos starting file position to write

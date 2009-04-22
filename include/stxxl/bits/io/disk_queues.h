@@ -18,6 +18,7 @@
 
 #include <stxxl/bits/namespace.h>
 #include <stxxl/bits/singleton.h>
+#include <stxxl/bits/io/iostats.h>
 #include <stxxl/bits/io/request_queue_impl_qwqr.h>
 
 
@@ -42,7 +43,9 @@ class disk_queues : public singleton<disk_queues>
 
 protected:
     request_queue_map queues;
-    disk_queues() { }
+    disk_queues() {
+        stxxl::stats::get_instance(); // initialize stats before ourselves
+    }
 
 public:
     void add_request(request_ptr & req, DISKID disk)
@@ -53,6 +56,22 @@ public:
             queues[disk] = new request_queue_type();
         }
         queues[disk]->add_request(req);
+    }
+
+    //! \brief Cancel a request
+    //! The specified request is cancelled unless already being processed.
+    //! However, cancellation cannot be guaranteed.
+    //! Cancelled requests must still be waited for in order to ensure correct
+    //! operation.
+    //! \param req request to cancel
+    //! \param disk disk number for disk that \c req was scheduled on
+    //! \return \c true iff the request was cancelled successfully
+    bool cancel_request(request_ptr & req, DISKID disk)
+    {
+        if (queues.find(disk) != queues.end())
+            return queues[disk]->cancel_request(req);
+        else
+            return false;
     }
 
     ~disk_queues()
