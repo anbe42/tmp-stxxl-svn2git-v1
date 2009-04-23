@@ -404,13 +404,15 @@ struct TwoToOneDimArrayColumnAdaptor
 
 
 template <typename array_type, typename value_type, unsigned_type modulo>
-class ArrayOfSequencesIterator : public std::iterator<std::random_access_iterator_tag, value_type, unsigned_type>
+class ArrayOfSequencesIterator : public std::iterator<std::random_access_iterator_tag, value_type, int_type>
 {
     unsigned_type pos;
     unsigned_type offset;
     array_type * arrays;
     array_type * base;
     value_type * base_element;
+	
+	typedef int_type diff_type;
 
     //! \invariant block * modulo + offset = pos
 
@@ -490,29 +492,29 @@ public:
         return former;
     }
 
-    ArrayOfSequencesIterator & operator += (unsigned_type addend)
+    ArrayOfSequencesIterator & operator += (diff_type addend)
     {
         set(pos + addend);
         return *this;
     }
 
-    ArrayOfSequencesIterator & operator -= (unsigned_type addend)
+    ArrayOfSequencesIterator & operator -= (diff_type addend)
     {
         set(pos - addend);
         return *this;
     }
 
-    ArrayOfSequencesIterator operator + (unsigned_type addend) const
+    ArrayOfSequencesIterator operator + (diff_type addend) const
     {
         return ArrayOfSequencesIterator(arrays, pos + addend);
     }
 
-    ArrayOfSequencesIterator operator - (unsigned_type subtrahend) const
+    ArrayOfSequencesIterator operator - (diff_type subtrahend) const
     {
         return ArrayOfSequencesIterator(arrays, pos - subtrahend);
     }
 
-    unsigned_type operator - (const ArrayOfSequencesIterator & subtrahend) const
+    diff_type operator - (const ArrayOfSequencesIterator & subtrahend) const
     {
         return pos - subtrahend.pos;
     }
