@@ -19,7 +19,7 @@
 #include <stxxl/vector>
 
 
-#define RECORD_SIZE 16
+#define RECORD_SIZE 32
 
 struct my_type
 {
