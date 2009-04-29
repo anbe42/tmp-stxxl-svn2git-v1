@@ -133,17 +133,17 @@ GET_FILE_ID	?= stat -L -c '%d:%i' $1
 
 #### STXXL CONFIGURATION #########################################
 
-# check, whether stxxl has been configured
-ifeq (,$(strip $(wildcard $(STXXL_ROOT)/include/stxxl.h)))
-$(warning *** WARNING: STXXL has not been configured correctly)
-ifeq (,$(strip $(wildcard $(CURDIR)/make.settings.local)))
+# create make.settings.local in the root directory
 ifneq (,$(strip $(wildcard $(CURDIR)/include/stxxl.h)))
-$(warning *** WARNING: trying autoconfiguration for STXXL_ROOT=$(CURDIR:$(HOME)%=$$(HOME)%))
+ifeq (,$(strip $(wildcard $(CURDIR)/make.settings.local)))
+ifeq (,$(STXXL_AUTOCONFIG))
 $(warning *** WARNING: you did not have a make.settings.local file -- creating ...)
+endif
 $(shell echo -e '\043STXXL_ROOT	 = $(CURDIR:$(HOME)%=$$(HOME)%)' >> $(CURDIR)/make.settings.local)
 MCSTL_ROOT	?= $(HOME)/work/mcstl
 $(shell echo -e '\043MCSTL_ROOT	 = $(MCSTL_ROOT:$(HOME)%=$$(HOME)%)' >> $(CURDIR)/make.settings.local)
-$(shell echo -e '\043COMPILER_GCC	 = g++-4.2.3' >> $(CURDIR)/make.settings.local)
+$(shell echo -e '\043COMPILER_GCC	 = g++-4.2' >> $(CURDIR)/make.settings.local)
+$(shell echo -e '\043COMPILER_GCC	 = g++-4.3 -std=c++0x' >> $(CURDIR)/make.settings.local)
 $(shell echo -e '\043COMPILER_ICPC	 = icpc' >> $(CURDIR)/make.settings.local)
 ifeq (Darwin,$(strip $(shell uname)))
 $(shell echo -e 'USE_MACOSX	 = yes' >> $(CURDIR)/make.settings.local)
@@ -155,11 +155,14 @@ $(shell echo -e 'USE_FREEBSD	 = yes' >> $(CURDIR)/make.settings.local)
 else
 $(shell echo -e '\043USE_FREEBSD	 = no' >> $(CURDIR)/make.settings.local)
 endif
-$(error ERROR: Please check make.settings.local and try again)
+include make.settings.local
 endif
-else
+endif
+
+# check, whether stxxl is configured correctly
+ifeq (,$(strip $(wildcard $(STXXL_ROOT)/include/stxxl.h)))
+$(warning *** WARNING: STXXL has not been configured correctly)
 $(warning *** WARNING: Please check make.settings.local)
-endif
 $(error ERROR: could not find a STXXL installation in STXXL_ROOT=$(STXXL_ROOT))
 endif
 
