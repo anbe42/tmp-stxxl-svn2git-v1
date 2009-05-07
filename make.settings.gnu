@@ -184,9 +184,6 @@ endif
 STXXL_SPECIFIC	+= \
 	$(PTHREAD_FLAG) \
 	$(CPPFLAGS_ARCH) \
-	-DSORT_OPTIMAL_PREFETCHING \
-	-DUSE_MALLOC_LOCK \
-	-DCOUNT_WAIT_TIME \
 	-I$(strip $(STXXL_ROOT))/include \
 	-include stxxl/bits/defines.h \
 	-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE \
@@ -348,13 +345,24 @@ bin	?= $(strip $(EXEEXT))
 
 #### COMPILE/LINK RULES ###########################################
 
+define COMPILE_STXXL
+	@$(RM) $@ $(@:.$o=).$d
+	$(COMPILER) $(STXXL_COMPILER_OPTIONS) -MD -MF $(@:.$o=).$dT -c $(OUTPUT_OPTION) $< && mv $(@:.$o=).$dT $(@:.$o=).$d
+endef
+
 DEPS_MAKEFILES	:= $(wildcard $(TOPDIR)/Makefile.subdir.gnu $(TOPDIR)/make.settings $(TOPDIR)/make.settings.local GNUmakefile Makefile Makefile.common Makefile.local)
 %.$o: %.cpp $(DEPS_MAKEFILES)
-	@$(RM) $@ $*.$d
-	$(COMPILER) $(STXXL_COMPILER_OPTIONS) -MD -MF $*.$dT -c $(OUTPUT_OPTION) $< && mv $*.$dT $*.$d
+	$(COMPILE_STXXL)
 
 %.$(ii): %.cpp $(DEPS_MAKEFILES)
 	$(COMPILER) $(STXXL_COMPILER_OPTIONS) -E $(OUTPUT_OPTION) $<
+
+# $1=infix $2=additional CPPFLAGS
+define COMPILE_VARIANT
+%.$1.$$o: CPPFLAGS += $2
+%.$1.$$o: %.cpp $$(DEPS_MAKEFILES)
+	$$(COMPILE_STXXL)
+endef
 
 LINK_STXXL	 = $(LINKER) $1 $(STXXL_LINKER_OPTIONS) -o $@
 

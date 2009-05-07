@@ -14,6 +14,11 @@
 #ifndef STXXL_SORT_STREAM_HEADER
 #define STXXL_SORT_STREAM_HEADER
 
+#ifndef STXXL_SORT_OPTIMAL_PREFETCHING
+#define STXXL_SORT_OPTIMAL_PREFETCHING 1
+#endif
+
+
 #ifdef STXXL_BOOST_CONFIG
  #include <boost/config.hpp>
 #endif
@@ -104,21 +109,12 @@ namespace stream
         {
             if (block_type::has_filler)
                 std::sort(
-#if 1
                     ArrayOfSequencesIterator<
                         block_type, typename block_type::value_type, block_type::size
                         >(run, 0),
                     ArrayOfSequencesIterator<
                         block_type, typename block_type::value_type, block_type::size
                         >(run, elements),
-#else
-                    TwoToOneDimArrayRowAdaptor<
-                        block_type, value_type, block_type::size
-                        >(run, 0),
-                    TwoToOneDimArrayRowAdaptor<
-                        block_type, value_type, block_type::size
-                        >(run, elements),
-#endif
                     cmp);
 
             else
@@ -449,21 +445,12 @@ namespace stream
         {
             if (block_type::has_filler)
                 std::sort(
-#if 1
                     ArrayOfSequencesIterator<
                         block_type, typename block_type::value_type, block_type::size
                         >(run, 0),
                     ArrayOfSequencesIterator<
                         block_type, typename block_type::value_type, block_type::size
                         >(run, elements),
-#else
-                    TwoToOneDimArrayRowAdaptor<
-                        block_type, value_type, block_type::size
-                        >(run, 0),
-                    TwoToOneDimArrayRowAdaptor<
-                        block_type, value_type, block_type::size
-                        >(run, elements),
-#endif
                     cmp);
 
             else
@@ -811,25 +798,12 @@ namespace stream
                 }
             }
             if (!stxxl::is_sorted(
-#if 1
                     ArrayOfSequencesIterator<
                         block_type, typename block_type::value_type, block_type::size
                         >(blocks, 0),
                     ArrayOfSequencesIterator<
                         block_type, typename block_type::value_type, block_type::size
                         >(blocks, sruns.runs_sizes[irun]),
-#else
-                    TwoToOneDimArrayRowAdaptor<
-                        block_type, value_type, block_type::size
-                        >(blocks, 0),
-                    TwoToOneDimArrayRowAdaptor<
-                        block_type, value_type, block_type::size
-                        >(blocks,
-                          //nblocks*block_type::size
-                          //(irun<nruns-1)?(nblocks*block_type::size): (sruns.elements%(nblocks*block_type::size))
-                          sruns.runs_sizes[irun]
-                          ),
-#endif
                     cmp))
             {
                 STXXL_ERRMSG("check_sorted_runs  wrong order in the run");
@@ -1142,7 +1116,7 @@ namespace stream
             const int_type n_prefetch_buffers = STXXL_MAX(2 * disks_number, (int_type(m_) - int_type(nruns)));
 
 
-#ifdef SORT_OPTIMAL_PREFETCHING
+#if STXXL_SORT_OPTIMAL_PREFETCHING
             // heuristic
             const int_type n_opt_prefetch_buffers = 2 * disks_number + (3 * (n_prefetch_buffers - 2 * disks_number)) / 10;
 
@@ -1154,7 +1128,6 @@ namespace stream
 #else
             for (i = 0; i < prefetch_seq_size; ++i)
                 prefetch_seq[i] = i;
-
 #endif
 
 
