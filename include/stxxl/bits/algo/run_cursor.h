@@ -4,6 +4,7 @@
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
  *  Copyright (C) 2003 Roman Dementiev <dementiev@mpi-sb.mpg.de>
+ *  Copyright (C) 2009 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -13,7 +14,8 @@
 #ifndef STXXL_RUN_CURSOR_HEADER
 #define STXXL_RUN_CURSOR_HEADER
 
-#include <stxxl/bits/common/utils.h>
+#include <cstdlib>
+#include <stxxl/bits/common/types.h>
 
 
 __STXXL_BEGIN_NAMESPACE
@@ -21,18 +23,18 @@ __STXXL_BEGIN_NAMESPACE
 template <typename block_type>
 struct run_cursor
 {
-    unsigned pos;
+    unsigned_type pos;
     block_type * buffer;
 
     run_cursor() : pos(0), buffer(NULL) { }
 
-    inline const typename block_type::type & current() const
+    inline typename block_type::const_reference current() const
     {
         return (*buffer)[pos];
     }
-    inline void operator ++ (int)
+    inline void operator ++ ()
     {
-        pos++;
+        ++pos;
     }
 };
 
@@ -56,7 +58,6 @@ struct run_cursor2 : public run_cursor<block_type>
     typedef prefetcher_type_ prefetcher_type;
     typedef run_cursor2<block_type, prefetcher_type> _Self;
     typedef typename block_type::value_type value_type;
-
 
     using run_cursor<block_type>::pos;
     using run_cursor<block_type>::buffer;
@@ -86,7 +87,7 @@ struct run_cursor2 : public run_cursor<block_type>
     {
         return (pos >= block_type::size);
     }
-    inline void operator ++ (int);
+    inline void operator ++ ();
     inline void make_inf()
     {
         pos = block_type::size;
@@ -100,10 +101,10 @@ void * have_prefetcher<must_be_void>::untyped_prefetcher = NULL;
 
 template <typename block_type,
           typename prefetcher_type>
-void run_cursor2<block_type, prefetcher_type>::operator ++ (int)
+void run_cursor2<block_type, prefetcher_type>::operator ++ ()
 {
     assert(!empty());
-    pos++;
+    ++pos;
     if (UNLIKELY(pos >= block_type::size))
     {
         if (prefetcher()->block_consumed(buffer))
@@ -112,18 +113,21 @@ void run_cursor2<block_type, prefetcher_type>::operator ++ (int)
 }
 
 
+#if 0
 template <typename block_type>
 struct run_cursor_cmp
 {
     typedef run_cursor<block_type> cursor_type;
-    /*
-       inline bool operator  () (const cursor_type & a, const cursor_type & b)	// greater or equal
-       {
-            return !((*a.buffer)[a.pos] < (*b.buffer)[b.pos]);
-       }*/
+
+    inline bool operator () (const cursor_type & a, const cursor_type & b)      // greater or equal
+    {
+        return !((*a.buffer)[a.pos] < (*b.buffer)[b.pos]);
+    }
 };
+#endif
 
 __STXXL_END_NAMESPACE
 
 
 #endif // !STXXL_RUN_CURSOR_HEADER
+// vim: et:ts=4:sw=4

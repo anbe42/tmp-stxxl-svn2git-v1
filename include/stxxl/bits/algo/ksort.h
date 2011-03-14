@@ -4,7 +4,7 @@
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
  *  Copyright (C) 2002 Roman Dementiev <dementiev@mpi-sb.mpg.de>
- *  Copyright (C) 2008 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
+ *  Copyright (C) 2008-2011 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -13,13 +13,6 @@
 
 #ifndef STXXL_KSORT_HEADER
 #define STXXL_KSORT_HEADER
-
-#ifndef STXXL_SORT_OPTIMAL_PREFETCHING
-#define STXXL_SORT_OPTIMAL_PREFETCHING 1
-#endif
-
-
-#include <list>
 
 #include <stxxl/bits/mng/mng.h>
 #include <stxxl/bits/common/rand.h>
@@ -35,6 +28,9 @@
 #include <stxxl/bits/algo/run_cursor.h>
 #include <stxxl/bits/algo/losertree.h>
 #include <stxxl/bits/algo/inmemsort.h>
+#include <stxxl/bits/algo/sort_base.h>
+#include <stxxl/bits/common/is_sorted.h>
+#include <stxxl/bits/common/utils.h>
 
 
 //#define INTERLEAVED_ALLOC
@@ -213,10 +209,9 @@ namespace ksort_local
         run = *runs;
         int_type run_size = (*runs)->size();
         key_type offset = 0;
-        const int log_k1 =
-            static_cast<int>(ceil(log2((m2 * block_type::size * sizeof(type_key_) / STXXL_L2_SIZE) ?
-                                       (double(m2 * block_type::size * sizeof(type_key_) / STXXL_L2_SIZE)) : 2.)));
-        const int log_k2 = int(log2(double(m2 * Blocks1->size))) - log_k1 - 1;
+        const int log_k1 = log2_ceil((m2 * block_type::size * sizeof(type_key_) / STXXL_L2_SIZE) ?
+                                     (m2 * block_type::size * sizeof(type_key_) / STXXL_L2_SIZE) : 2);
+        const int log_k2 = log2_floor(m2 * Blocks1->size) - log_k1 - 1;
         STXXL_VERBOSE("log_k1: " << log_k1 << " log_k2:" << log_k2);
         const int_type k1 = 1 << log_k1;
         const int_type k2 = 1 << log_k2;
@@ -224,7 +219,7 @@ namespace ksort_local
         int_type * bucket2 = new int_type[k2];
         int_type i;
 
-        disk_queues::get_instance()->set_priority_op(disk_queue::WRITE);
+        disk_queues::get_instance()->set_priority_op(request_queue::WRITE);
 
         for (i = 0; i < run_size; i++)
         {
@@ -308,7 +303,7 @@ namespace ksort_local
     template <typename block_type,
               typename prefetcher_type,
               typename key_extractor>
-    struct run_cursor2_cmp
+    struct run_cursor2_cmp : public std::binary_function<run_cursor2<block_type, prefetcher_type>, run_cursor2<block_type, prefetcher_type>, bool>
     {
         typedef run_cursor2<block_type, prefetcher_type> cursor_type;
         key_extractor keyobj;
@@ -316,7 +311,7 @@ namespace ksort_local
         {
             keyobj = keyobj_;
         }
-        inline bool operator () (const cursor_type & a, const cursor_type & b)
+        inline bool operator () (const cursor_type & a, const cursor_type & b) const
         {
             if (UNLIKELY(b.empty()))
                 return true;
@@ -356,8 +351,7 @@ namespace ksort_local
     {
         typedef typename block_type::value_type value_type;
 
-        //STXXL_VERBOSE1("check_sorted_runs  Runs: "<<nruns);
-        STXXL_MSG("check_sorted_runs  Runs: " << nruns);
+        STXXL_MSG("check_ksorted_runs  Runs: " << nruns);
         unsigned_type irun = 0;
         for (irun = 0; irun < nruns; ++irun)
         {
@@ -410,14 +404,9 @@ namespace ksort_local
                         return false;
                     }
                 }
-                if (!stxxl::is_sorted(
-                        ArrayOfSequencesIterator<
-                            block_type, typename block_type::value_type, block_type::size
-                            >(blocks, 0),
-                        ArrayOfSequencesIterator<
-                            block_type, typename block_type::value_type, block_type::size
-                            >(blocks, nelements),
-                        key_comparison<value_type, key_ext_>()))
+                if (!stxxl::is_sorted(make_element_iterator(blocks, 0),
+                                      make_element_iterator(blocks, nelements),
+                                      key_comparison<value_type, key_ext_>()))
                 {
                     STXXL_MSG("check_sorted_runs  wrong order in the run " << irun);
                     STXXL_MSG("Data in blocks:");
@@ -466,7 +455,7 @@ namespace ksort_local
                 in_runs[i]->end(),
                 copy_start);
         }
-        std::stable_sort(consume_seq.begin(), consume_seq.end());
+        std::stable_sort(consume_seq.begin(), consume_seq.end() _STXXL_SORT_TRIGGER_FORCE_SEQUENTIAL);
 
         unsigned disks_number = config::get_instance()->disks_number();
 
@@ -507,15 +496,14 @@ namespace ksort_local
         run_cursor2_cmp<block_type, prefetcher_type, key_extractor> cmp(keyobj);
         loser_tree<
             run_cursor_type,
-            run_cursor2_cmp<block_type, prefetcher_type, key_extractor>,
-            block_type::size> losers(&prefetcher, nruns, cmp);
-
+            run_cursor2_cmp<block_type, prefetcher_type, key_extractor> >
+                losers(&prefetcher, nruns, cmp);
 
         block_type * out_buffer = writer.get_free_block();
 
         for (i = 0; i < out_run_size; i++)
         {
-            losers.multi_merge(out_buffer->elem);
+            losers.multi_merge(out_buffer->elem, out_buffer->elem + block_type::size);
             (*out_run)[i].key = keyobj(out_buffer->elem[0]);
             out_buffer = writer.write(out_buffer, (*out_run)[i].bid);
         }
@@ -549,7 +537,7 @@ namespace ksort_local
         typedef simple_vector<trigger_entry_type> run_type;
         typedef typename interleaved_alloc_traits<alloc_strategy>::strategy interleaved_alloc_strategy;
 
-        unsigned_type m2 = STXXL_DIVRU(_m, 2);
+        unsigned_type m2 = div_ceil(_m, 2);
         const unsigned_type m2_rf = m2 * block_type::raw_size /
                                     (block_type::raw_size + block_type::size * sizeof(type_key<type, key_type>));
         STXXL_VERBOSE("Reducing number of blocks in a run from " << m2 << " to " <<
@@ -560,9 +548,7 @@ namespace ksort_local
         unsigned_type nruns = full_runs + partial_runs;
         unsigned_type i;
 
-        config * cfg = config::get_instance();
         block_manager * mng = block_manager::get_instance();
-        int ndisks = cfg->disks_number();
 
         STXXL_VERBOSE("n=" << _n << " nruns=" << nruns << "=" << full_runs << "+" << partial_runs);
 
@@ -580,29 +566,26 @@ namespace ksort_local
             unsigned_type last_run_size = _n - full_runs * m2;
             runs[i] = new run_type(last_run_size);
 
-            mng->new_blocks(interleaved_alloc_strategy(nruns, 0, ndisks),
+            mng->new_blocks(interleaved_alloc_strategy(nruns, alloc_strategy()),
                             RunsToBIDArrayAdaptor2<block_type::raw_size, run_type>
-                                                      (runs, 0, nruns, last_run_size),
+                                (runs, 0, nruns, last_run_size),
                             RunsToBIDArrayAdaptor2<block_type::raw_size, run_type>
-                                                      (runs, _n, nruns, last_run_size));
+                                (runs, _n, nruns, last_run_size));
         }
         else
-            mng->new_blocks(interleaved_alloc_strategy(nruns, 0, ndisks),
+            mng->new_blocks(interleaved_alloc_strategy(nruns, alloc_strategy()),
                             RunsToBIDArrayAdaptor<block_type::raw_size, run_type>
-                                                      (runs, 0, nruns),
+                                (runs, 0, nruns),
                             RunsToBIDArrayAdaptor<block_type::raw_size, run_type>
-                                                      (runs, _n, nruns));
+                                (runs, _n, nruns));
 
 #else
         if (partial_runs)
             runs[i] = new run_type(_n - full_runs * m2);
 
-
         for (i = 0; i < nruns; i++)
         {
-            mng->new_blocks(alloc_strategy(0, ndisks),
-                            trigger_entry_iterator<typename run_type::iterator, block_type::raw_size>(runs[i]->begin()),
-                            trigger_entry_iterator<typename run_type::iterator, block_type::raw_size>(runs[i]->end()));
+            mng->new_blocks(alloc_strategy(), make_bid_iterator(runs[i]->begin()), make_bid_iterator(runs[i]->end()));
         }
 #endif
 
@@ -615,16 +598,14 @@ namespace ksort_local
 
         double io_wait_after_rf = stats::get_instance()->get_io_wait_time();
 
-        disk_queues::get_instance()->set_priority_op(disk_queue::WRITE);
+        disk_queues::get_instance()->set_priority_op(request_queue::WRITE);
 
-        // Optimal merging: merge r = pow(nruns,1/ceil(log(nruns)/log(m))) at once
-
-        const int_type merge_factor = static_cast<int_type>(ceil(pow(nruns, 1. / ceil(log(double(nruns)) / log(double(_m))))));
+        const int_type merge_factor = optimal_merge_factor(nruns, _m);
         run_type ** new_runs;
 
         while (nruns > 1)
         {
-            int_type new_nruns = STXXL_DIVRU(nruns, merge_factor);
+            int_type new_nruns = div_ceil(nruns, merge_factor);
             STXXL_VERBOSE("Starting new merge phase: nruns: " << nruns <<
                           " opt_merge_factor: " << merge_factor << " m:" << _m << " new_nruns: " << new_nruns);
 
@@ -646,7 +627,7 @@ namespace ksort_local
                 runs_left -= runs2merge;
             }
             // allocate blocks in the new runs
-            if (cur_out_run == 1 && blocks_in_new_run == int_type(_n) && (input_bids->storage->get_id() == -1))
+            if (cur_out_run == 1 && blocks_in_new_run == int_type(_n) && !input_bids->is_managed())
             {
                 // if we sort a file we can reuse the input bids for the output
                 input_bid_iterator cur = input_bids;
@@ -656,23 +637,23 @@ namespace ksort_local
                 }
 
                 bid_type & firstBID = (*new_runs[0])[0].bid;
-                if (firstBID.storage->get_id() != -1)
+                if (firstBID.is_managed())
                 {
                     // the first block does not belong to the file
                     // need to reallocate it
-                    mng->new_blocks(FR(), &firstBID, (&firstBID) + 1);
+                    mng->new_block(FR(), firstBID);
                 }
                 bid_type & lastBID = (*new_runs[0])[_n - 1].bid;
-                if (lastBID.storage->get_id() != -1)
+                if (lastBID.is_managed())
                 {
                     // the first block does not belong to the file
                     // need to reallocate it
-                    mng->new_blocks(FR(), &lastBID, (&lastBID) + 1);
+                    mng->new_block(FR(), lastBID);
                 }
             }
             else
             {
-                mng->new_blocks(interleaved_alloc_strategy(new_nruns, 0, ndisks),
+                mng->new_blocks(interleaved_alloc_strategy(new_nruns, alloc_strategy()),
                                 RunsToBIDArrayAdaptor2<block_type::raw_size, run_type>(new_runs, 0, new_nruns, blocks_in_new_run),
                                 RunsToBIDArrayAdaptor2<block_type::raw_size, run_type>(new_runs, _n, new_nruns, blocks_in_new_run));
             }
@@ -684,7 +665,7 @@ namespace ksort_local
             while (runs_left > 0)
             {
                 int_type runs2merge = STXXL_MIN(runs_left, merge_factor);
-#ifdef STXXL_CHECK_ORDER_IN_SORTS
+#if STXXL_CHECK_ORDER_IN_SORTS
                 assert((check_ksorted_runs<block_type, run_type, key_extractor>(runs + nruns - runs_left, runs2merge, m2, keyobj)));
 #endif
                 STXXL_VERBOSE("Merging " << runs2merge << " runs");
@@ -707,7 +688,7 @@ namespace ksort_local
                       after_runs_creation - begin << " s");
         STXXL_VERBOSE("Time in I/O wait(rf): " << io_wait_after_rf << " s");
         STXXL_VERBOSE(*stats::get_instance());
-        UNUSED(begin + io_wait_after_rf);
+        STXXL_UNUSED(begin + after_runs_creation + end + io_wait_after_rf);
 
         return result;
     }
@@ -719,11 +700,14 @@ namespace ksort_local
    Model of \b Key \b extractor concept must:
    - define type \b key_type ,
    - provide \b operator() that returns key value of an object of user type
-   - provide \b max_value method that returns a value that is \b greater than all
+   - provide \b max_value method that returns a value that is \b strictly \b greater than all
    other objects of user type in respect to the key obtained by this key extractor ,
-   - provide \b min_value method that returns a value that is \b less than all
+   - provide \b min_value method that returns a value that is \b strictly \b less than all
    other objects of user type in respect to the key obtained by this key extractor ,
    - operator > , operator <, operator == and operator != on type \b key_type must be defined.
+   - \b Note: when using unsigned integral types as key, the value 0 cannot
+   be used as a key value because it would
+   conflict with the sentinel value returned by \b min_value
 
    Example: extractor class \b GetWeight, that extracts weight from an \b Edge
  \verbatim
@@ -737,9 +721,9 @@ namespace ksort_local
    struct GetWeight
    {
     typedef unsigned key_type;
-    key_type operator() (const Edge & e)
+    key_type operator() (const Edge & e) const
     {
-                  return e.weight;
+        return e.weight;
     }
     Edge min_value() const { return Edge(0,0,(std::numeric_limits<key_type>::min)()); };
     Edge max_value() const { return Edge(0,0,(std::numeric_limits<key_type>::max)()); };
@@ -749,12 +733,11 @@ namespace ksort_local
  */
 
 
-//! \brief External sorting routine for records with keys
+//! \brief Sort records with integer keys
 //! \param first_ object of model of \c ext_random_access_iterator concept
 //! \param last_ object of model of \c ext_random_access_iterator concept
 //! \param keyobj \link key_extractor key extractor \endlink object
 //! \param M__ amount of memory for internal use (in bytes)
-//! \remark Implements external merge sort described in [Dementiev & Sanders'03]
 //! \remark Order in the result is non-stable
 template <typename ExtIterator_, typename KeyExtractor_>
 void ksort(ExtIterator_ first_, ExtIterator_ last_, KeyExtractor_ keyobj, unsigned_type M__)
@@ -789,8 +772,8 @@ void ksort(ExtIterator_ first_, ExtIterator_ last_, KeyExtractor_ keyobj, unsign
                 request_ptr req;
 
                 req = first_block->read(*first_.bid());
-                mng->new_blocks(FR(), &first_bid, (&first_bid) + 1);                // try to overlap
-                mng->new_blocks(FR(), &last_bid, (&last_bid) + 1);
+                mng->new_block(FR(), first_bid);                // try to overlap
+                mng->new_block(FR(), last_bid);
                 req->wait();
 
 
@@ -827,10 +810,10 @@ void ksort(ExtIterator_ first_, ExtIterator_ last_, KeyExtractor_ keyobj, unsign
                 run_type * out =
                     ksort_local::ksort_blocks<
                         typename ExtIterator_::block_type,
-                        typename ExtIterator_::vector_type::alloc_strategy,
+                        typename ExtIterator_::vector_type::alloc_strategy_type,
                         typename ExtIterator_::bids_container_iterator,
                         KeyExtractor_>
-                                                  (first_.bid(), n, M__ / block_type::raw_size, keyobj);
+                        (first_.bid(), n, M__ / block_type::raw_size, keyobj);
 
 
                 first_block = new typename ExtIterator_::block_type;
@@ -900,7 +883,7 @@ void ksort(ExtIterator_ first_, ExtIterator_ last_, KeyExtractor_ keyobj, unsign
                 request_ptr req;
 
                 req = first_block->read(*first_.bid());
-                mng->new_blocks(FR(), &first_bid, (&first_bid) + 1);                // try to overlap
+                mng->new_block(FR(), first_bid);                // try to overlap
                 req->wait();
 
 
@@ -923,10 +906,10 @@ void ksort(ExtIterator_ first_, ExtIterator_ last_, KeyExtractor_ keyobj, unsign
                 run_type * out =
                     ksort_local::ksort_blocks<
                         typename ExtIterator_::block_type,
-                        typename ExtIterator_::vector_type::alloc_strategy,
+                        typename ExtIterator_::vector_type::alloc_strategy_type,
                         typename ExtIterator_::bids_container_iterator,
                         KeyExtractor_>
-                                                  (first_.bid(), n, M__ / block_type::raw_size, keyobj);
+                        (first_.bid(), n, M__ / block_type::raw_size, keyobj);
 
 
                 first_block = new typename ExtIterator_::block_type;
@@ -982,7 +965,7 @@ void ksort(ExtIterator_ first_, ExtIterator_ last_, KeyExtractor_ keyobj, unsign
                 unsigned_type i;
 
                 req = last_block->read(*last_.bid());
-                mng->new_blocks(FR(), &last_bid, (&last_bid) + 1);
+                mng->new_block(FR(), last_bid);
                 req->wait();
 
                 for (i = last_.block_offset(); i < block_type::size; i++)
@@ -1003,10 +986,10 @@ void ksort(ExtIterator_ first_, ExtIterator_ last_, KeyExtractor_ keyobj, unsign
                 run_type * out =
                     ksort_local::ksort_blocks<
                         typename ExtIterator_::block_type,
-                        typename ExtIterator_::vector_type::alloc_strategy,
+                        typename ExtIterator_::vector_type::alloc_strategy_type,
                         typename ExtIterator_::bids_container_iterator,
                         KeyExtractor_>
-                                                  (first_.bid(), n, M__ / block_type::raw_size, keyobj);
+                        (first_.bid(), n, M__ / block_type::raw_size, keyobj);
 
 
                 last_block = new typename ExtIterator_::block_type;
@@ -1052,10 +1035,10 @@ void ksort(ExtIterator_ first_, ExtIterator_ last_, KeyExtractor_ keyobj, unsign
                 run_type * out =
                     ksort_local::ksort_blocks<
                         typename ExtIterator_::block_type,
-                        typename ExtIterator_::vector_type::alloc_strategy,
+                        typename ExtIterator_::vector_type::alloc_strategy_type,
                         typename ExtIterator_::bids_container_iterator,
                         KeyExtractor_>
-                                                  (first_.bid(), n, M__ / block_type::raw_size, keyobj);
+                        (first_.bid(), n, M__ / block_type::raw_size, keyobj);
 
                 typename run_type::iterator it = out->begin();
                 typename ExtIterator_::bids_container_iterator cur_bid = first_.bid();
@@ -1070,8 +1053,10 @@ void ksort(ExtIterator_ first_, ExtIterator_ last_, KeyExtractor_ keyobj, unsign
         }
     }
 
-#ifdef STXXL_CHECK_ORDER_IN_SORTS
-    assert(stxxl::is_sorted(first_, last_, ksort_local::key_comparison<value_type, KeyExtractor_>()));
+#if STXXL_CHECK_ORDER_IN_SORTS
+    typedef typename ExtIterator_::const_iterator const_iterator;
+    assert(stxxl::is_sorted(const_iterator(first_), const_iterator(last_),
+                            ksort_local::key_comparison<value_type, KeyExtractor_>()));
 #endif
 }
 
@@ -1094,11 +1079,10 @@ struct ksort_defaultkey
 };
 
 
-//! \brief External sorting routine for records with keys
+//! \brief Sort records with integer keys
 //! \param first_ object of model of \c ext_random_access_iterator concept
 //! \param last_ object of model of \c ext_random_access_iterator concept
 //! \param M__ amount of buffers for internal use
-//! \remark Implements external merge sort described in [Dementiev & Sanders'03]
 //! \remark Order in the result is non-stable
 /*!
    Record's type must:

@@ -4,6 +4,7 @@
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
  *  Copyright (C) 2002-2003 Roman Dementiev <dementiev@mpi-sb.mpg.de>
+ *  Copyright (C) 2008 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -11,10 +12,11 @@
  **************************************************************************/
 
 #include <stxxl/bits/io/simdisk_file.h>
-#include <stxxl/bits/io/request_impl_basic.h>
 
-#ifndef BOOST_MSVC
-// mmap call does not exist in Windows
+#if STXXL_HAVE_SIMDISK_FILE
+
+#include <stxxl/bits/io/iostats.h>
+#include <stxxl/bits/common/error_handling.h>
 
 
 __STXXL_BEGIN_NAMESPACE
@@ -36,47 +38,47 @@ void DiskGeometry::add_zone(int & first_cyl, int last_cyl,
     first_cyl = last_cyl + 1;
 }
 
-double DiskGeometry::get_delay(file::offset_type /*offset*/, file::size_type size)                   // returns delay in s
+// returns delay in s
+double DiskGeometry::get_delay(file::offset_type offset, file::size_type size)
 {
-    /*
+#if 0
+    int first_sect = offset / bytes_per_sector;
+    int last_sect = (offset + size) / bytes_per_sector;
+    int sectors = size / bytes_per_sector;
+    double delay =
+        cmd_ovh + seek_time + rot_latency +
+        double(bytes_per_sector) /
+        double(interface_speed);
 
-       int first_sect = offset / bytes_per_sector;
-       int last_sect = (offset + size) / bytes_per_sector;
-       int sectors = size / bytes_per_sector;
-       double delay =
-            cmd_ovh + seek_time + rot_latency +
-            double (bytes_per_sector) /
-            double (interface_speed);
+    std::set<Zone, ZoneCmp>::iterator zone = zones.lower_bound(first_sect);
+    //std::cout << __PRETTY_FUNCTION__ << " " << (*zone).first_sector << std::endl;
+    while (1)
+    {
+        int from_this_zone =
+            last_sect - ((*zone).first_sector +
+                         (*zone).sectors);
+        if (from_this_zone <= 0)
+        {
+            delay += sectors * bytes_per_sector /
+                     ((*zone).sustained_data_rate);
+            break;
+        }
+        else
+        {
+            delay += from_this_zone *
+                     bytes_per_sector /
+                     ((*zone).sustained_data_rate);
+            zone++;
+            stxxl_nassert(zone == zones.end());
+            sectors -= from_this_zone;
+        }
+    }
 
-       std::set < Zone, ZoneCmp >::iterator zone =
-            zones.lower_bound (first_sect);
-       // cout << __PRETTY_FUNCTION__ << " " << (*zone).first_sector << endl;
-       while (1)
-       {
-            int from_this_zone =
-                    last_sect - ((*zone).first_sector +
-                                 (*zone).sectors);
-            if (from_this_zone <= 0)
-            {
-                    delay += sectors * bytes_per_sector /
-                            ((*zone).sustained_data_rate);
-                    break;
-            }
-            else
-            {
-                    delay += from_this_zone *
-                            bytes_per_sector /
-                            ((*zone).sustained_data_rate);
-                    zone++;
-                    stxxl_nassert (zone == zones.end ());
-                    sectors -= from_this_zone;
-            }
-       }
-
-       return delay;
-
-     */
+    return delay;
+#else
+    STXXL_UNUSED(offset);
     return double(size) / double(AVERAGE_SPEED);
+#endif
 }
 
 
@@ -129,33 +131,31 @@ IC35L080AVVA07::IC35L080AVVA07()
     add_zone(last_cyl, 54010, 471, first_sect);
     add_zone(last_cyl, 55571, 448, first_sect);
 
-    /*
-     * set<Zone,ZoneCmp>::iterator it=zones.begin();
-     * int i=0;
-     * for(;it!=zones.end();it++,i++)
-     * {
-     * //const int block_size = 128*3*1024* 4; // one cylinder
-     *
-     * cout << "Zone " << i << " first sector: " << (*it).first_sector;
-     * cout << " sectors: " << (*it).sectors << " sustained rate: " ;
-     * cout << (*it).sustained_data_rate/1000000 << " Mb/s"  << endl;
-     *
-     * }
-     *
-     *
-     * cout << "Last sector     : " << first_sect <<endl;
-     * cout << "Approx. capacity: " << (first_sect/1000000)*bytes_per_sector << " Mb" << endl;
-     */
+#if 0
+    set<Zone, ZoneCmp>::iterator it = zones.begin();
+    int i = 0;
+    for ( ; it != zones.end(); it++, i++)
+    {
+        //const int block_size = 128*3*1024* 4;  // one cylinder
 
-    std::cout << "Transfer 16 Mb from zone 0 : " <<
+        std::cout << "Zone " << i << " first sector: " << (*it).first_sector;
+        std::cout << " sectors: " << (*it).sectors << " sustained rate: ";
+        std::cout << (*it).sustained_data_rate / 1024 / 1024 << " MiB/s" << std::endl;
+    }
+
+    std::cout << "Last sector     : " << first_sect << std::endl;
+    std::cout << "Approx. capacity: " << (first_sect / 1024 / 1024) * bytes_per_sector << " MiB" << std::endl;
+#endif
+
+    std::cout << "Transfer 16 MiB from zone 0 : " <<
     get_delay(0, 16 * 1024 * 1024) << " s" << std::endl;
-    std::cout << "Transfer 16 Mb from zone 30: " <<
+    std::cout << "Transfer 16 MiB from zone 30: " <<
     get_delay(file::offset_type(158204036) * file::offset_type(bytes_per_sector), 16 * 1024 * 1024) << " s" << std::endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////
 
-void sim_disk_file::serve(const request * req) throw(io_error)
+void sim_disk_file::serve(const request * req) throw (io_error)
 {
     scoped_mutex_lock fd_lock(fd_mutex);
     assert(req->get_file() == this);
@@ -165,42 +165,42 @@ void sim_disk_file::serve(const request * req) throw(io_error)
     request::request_type type = req->get_type();
     double op_start = timestamp();
 
-        stats::scoped_read_write_timer read_write_timer(bytes, type == request::WRITE);
+    stats::scoped_read_write_timer read_write_timer(bytes, type == request::WRITE);
 
-        void * mem = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_SHARED, file_des, offset);
-        if (mem == MAP_FAILED)
+    void * mem = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_SHARED, file_des, offset);
+    if (mem == MAP_FAILED)
+    {
+        STXXL_THROW2(io_error,
+                     " Mapping failed." <<
+                     " Page size: " << sysconf(_SC_PAGESIZE) <<
+                     " offset modulo page size " << (offset % sysconf(_SC_PAGESIZE)));
+    }
+    else if (mem == 0)
+    {
+        stxxl_function_error(io_error);
+    }
+    else
+    {
+        if (type == request::READ)
         {
-            STXXL_THROW2(io_error,
-                         " Mapping failed." <<
-                         " Page size: " << sysconf(_SC_PAGESIZE) <<
-                         " offset modulo page size " << (offset % sysconf(_SC_PAGESIZE)));
+            memcpy(buffer, mem, bytes);
+        } else {
+            memcpy(mem, buffer, bytes);
         }
-        else if (mem == 0)
-        {
-            stxxl_function_error(io_error);
-        }
-        else
-        {
-            if (type == request::READ)
-            {
-                memcpy(buffer, mem, bytes);
-            } else {
-                memcpy(mem, buffer, bytes);
-            }
-            stxxl_check_ge_0(munmap(mem, bytes), io_error);
-        }
+        stxxl_check_ge_0(munmap(mem, bytes), io_error);
+    }
 
-        double delay = get_delay(offset, bytes);
+    double delay = get_delay(offset, bytes);
 
-        delay = delay - timestamp() + op_start;
+    delay = delay - timestamp() + op_start;
 
-        assert(delay > 0.0);
+    assert(delay > 0.0);
 
-        int seconds_to_wait = static_cast<int>(floor(delay));
-        if (seconds_to_wait)
-            sleep(seconds_to_wait);
+    int seconds_to_wait = static_cast<int>(floor(delay));
+    if (seconds_to_wait)
+        sleep(seconds_to_wait);
 
-        usleep((unsigned long)((delay - seconds_to_wait) * 1000000.));
+    usleep((unsigned long)((delay - seconds_to_wait) * 1000000.));
 }
 
 const char * sim_disk_file::io_type() const
@@ -222,5 +222,5 @@ void sim_disk_file::set_size(offset_type newsize)
 
 __STXXL_END_NAMESPACE
 
-#endif // #ifndef BOOST_MSVC
+#endif  // #if STXXL_HAVE_SIMDISK_FILE
 // vim: et:ts=4:sw=4

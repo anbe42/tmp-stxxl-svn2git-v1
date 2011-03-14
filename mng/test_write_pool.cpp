@@ -4,6 +4,7 @@
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
  *  Copyright (C) 2003 Roman Dementiev <dementiev@mpi-sb.mpg.de>
+ *  Copyright (C) 2009 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -33,6 +34,7 @@ int main()
     pool.resize(5);
     block_type * blk = new block_type;
     block_type::bid_type bid;
-    stxxl::block_manager::get_instance()->new_blocks(stxxl::single_disk(), &bid, (&bid) + 1);
-    pool.write(blk, bid);
+    stxxl::block_manager::get_instance()->new_block(stxxl::single_disk(), bid);
+    pool.write(blk, bid)->wait();
+    delete blk;
 }

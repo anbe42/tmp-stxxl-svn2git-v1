@@ -4,6 +4,7 @@
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
  *  Copyright (C) 2007 Roman Dementiev <dementiev@ira.uka.de>
+ *  Copyright (C) 2009 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -100,7 +101,7 @@ public:
         std::vector<stxxl::request_ptr> requests;
         stxxl::block_manager * bm = stxxl::block_manager::get_instance();
         bm->new_blocks<block_type>(32, stxxl::striping(), std::back_inserter(bids));
-        std::vector<block_type, stxxl::new_alloc<block_type> > blocks(32);
+        block_type * blocks = new block_type[32];
         int vIndex;
         for (vIndex = 0; vIndex < 32; ++vIndex) {
             for (int vIndex2 = 0; vIndex2 < block_type::size; ++vIndex2) {
@@ -112,6 +113,7 @@ public:
         }
         stxxl::wait_all(requests.begin(), requests.end());
         bm->delete_blocks(bids.begin(), bids.end());
+        delete[] blocks;
     }
 
 
@@ -122,7 +124,7 @@ public:
         pool.resize(5);
         block_type * blk = new block_type;
         block_type::bid_type bid;
-        stxxl::block_manager::get_instance()->new_blocks(stxxl::single_disk(), &bid, (&bid) + 1);
+        stxxl::block_manager::get_instance()->new_block(stxxl::single_disk(), bid);
         pool.hint(bid);
         pool.read(blk, bid)->wait();
         delete blk;
@@ -135,7 +137,7 @@ public:
         pool.resize(5);
         block_type * blk = new block_type;
         block_type::bid_type bid;
-        stxxl::block_manager::get_instance()->new_blocks(stxxl::single_disk(), &bid, (&bid) + 1);
+        stxxl::block_manager::get_instance()->new_block(stxxl::single_disk(), bid);
         pool.write(blk, bid);
     }
 

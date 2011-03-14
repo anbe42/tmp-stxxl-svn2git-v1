@@ -4,6 +4,7 @@
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
  *  Copyright (C) 2005, 2006 Roman Dementiev <dementiev@ira.uka.de>
+ *  Copyright (C) 2009 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -13,6 +14,7 @@
 #include <algorithm>
 #include <cmath>
 #include <stxxl/map>
+#include <stxxl/stats>
 
 typedef unsigned int key_type;
 typedef unsigned int data_type;
@@ -42,8 +44,8 @@ int main(int argc, char ** argv)
     stxxl::stats_data stats_elapsed;
     STXXL_MSG(stats_begin);
 
-    STXXL_MSG("Block size " << BLOCK_SIZE / 1024 << " kb");
-    STXXL_MSG("Cache size " << (CACHE_SIZE * BLOCK_SIZE) / 1024 << " kb");
+    STXXL_MSG("Block size " << BLOCK_SIZE / 1024 << " KiB");
+    STXXL_MSG("Cache size " << (CACHE_SIZE * BLOCK_SIZE) / 1024 << " KiB");
     int max_mult = 256;
     if (argc > 1)
         max_mult = atoi(argv[1]);
@@ -52,7 +54,7 @@ int main(int argc, char ** argv)
         stats_begin = *stxxl::stats::get_instance();
         const unsigned el = mult * (CACHE_ELEMENTS / 8);
         STXXL_MSG("Elements to insert " << el << " volume =" <<
-                  (el * (sizeof(key_type) + sizeof(data_type))) / 1024 << " kb");
+                  (el * (sizeof(key_type) + sizeof(data_type))) / 1024 << " KiB");
         map_type * DMap = new map_type(CACHE_SIZE * BLOCK_SIZE / 2, CACHE_SIZE * BLOCK_SIZE / 2);
         //map_type  Map(CACHE_SIZE*BLOCK_SIZE/2,CACHE_SIZE*BLOCK_SIZE/2);
         map_type & Map = *DMap;

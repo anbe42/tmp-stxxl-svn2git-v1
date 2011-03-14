@@ -4,6 +4,7 @@
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
  *  Copyright (C) 2003 Roman Dementiev <dementiev@mpi-sb.mpg.de>
+ *  Copyright (C) 2009 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -22,7 +23,6 @@
 #include <cstdlib>
 
 #include <stxxl/bits/namespace.h>
-#include <stxxl/bits/common/utils.h>
 
 
 __STXXL_BEGIN_NAMESPACE
@@ -34,6 +34,7 @@ __STXXL_BEGIN_NAMESPACE
 class malloc_stats
 {
 #if !defined(__APPLE__) && !defined(__FreeBSD__)
+
 public:
     typedef int return_type;
 
@@ -137,7 +138,7 @@ inline std::ostream & operator << (std::ostream & s, const malloc_stats & st)
     s << "=================================================================" << std::endl;
 #else
     s << "MALLOC statistics are not supported on this platform";
-    UNUSED(st);
+    STXXL_UNUSED(st);
 #endif
     return s;
 }

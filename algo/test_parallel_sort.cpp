@@ -3,13 +3,18 @@
  *
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
- *  Copyright (C) 2007 Johannes Singler <singler@ira.uka.de>
- *  Copyright (C) 2008 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
+ *  Copyright (C) 2007, 2009 Johannes Singler <singler@ira.uka.de>
+ *  Copyright (C) 2008, 2009 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
  *  http://www.boost.org/LICENSE_1_0.txt)
  **************************************************************************/
+
+//! \example algo/test_parallel_sort.cpp
+//! This is an example of how to use the parallelized sorting algorithm.
+//! Setting all the parameters in optional, just compiling with either MCSTL
+//! or parallel mode suffices.
 
 #define MCSTL_QUICKSORT_WORKAROUND 0
 
@@ -24,6 +29,7 @@
 #include <stxxl/vector>
 #include <stxxl/stream>
 #include <stxxl/scan>
+#include <stxxl/sort>
 
 #ifdef __MCSTL__
 #include <mcstl.h>
@@ -137,6 +143,7 @@ void linear_sort_streamed(vector_type & input, vector_type & output)
     sort_stream_type sort_stream(input_stream, cl, run_size);
 
     vector_type::iterator o = stxxl::stream::materialize(sort_stream, output.begin(), output.end());
+    assert(o == output.end());
 
     double stop = stxxl::timestamp();
     std::cout << stxxl::stats_data(*stxxl::stats::get_instance()) - stats_begin;
@@ -156,7 +163,7 @@ void linear_sort_streamed(vector_type & input, vector_type & output)
 int main(int argc, const char ** argv)
 {
     if (argc < 6) {
-        std::cout << "Usage: " << argv[0] << " [n in megabytes] [p threads] [M in megabytes] [sorting algorithm: m | q | qb | s] [merging algorithm: p | s | n]" << std::endl;
+        std::cout << "Usage: " << argv[0] << " [n in MiB] [p threads] [M in MiB] [sorting algorithm: m | q | qb | s] [merging algorithm: p | s | n]" << std::endl;
         return -1;
     }
 
@@ -170,7 +177,7 @@ int main(int argc, const char ** argv)
     stxxl::unsigned_type memory_to_use = (stxxl::unsigned_type)atoi(argv[3]) * megabyte;
     run_size = memory_to_use;
     buffer_size = memory_to_use / 16;
-#ifdef _GLIBCXX_PARALLEL
+#ifdef STXXL_PARALLEL_MODE
     omp_set_num_threads(p);
     __gnu_parallel::_Settings parallel_settings(__gnu_parallel::_Settings::get());
 
@@ -220,8 +227,7 @@ int main(int argc, const char ** argv)
                __gnu_parallel::MWMS,
                __gnu_parallel::QS,
                __gnu_parallel::QS_BALANCED);
-#endif
-#ifdef __MCSTL__
+#elif defined(__MCSTL__)
     mcstl::HEURISTIC::num_threads = p;
     mcstl::HEURISTIC::force_sequential = false;
 
@@ -262,9 +268,9 @@ int main(int argc, const char ** argv)
     mcstl::HEURISTIC::multiway_merge_minimal_k = 2;
 #endif
 
-    std::cout << "Sorting " << megabytes_to_process << " MB of data ("
+    std::cout << "Sorting " << megabytes_to_process << " MiB of data ("
               << (megabytes_to_process * megabyte / sizeof(my_type)) << " elements) using "
-              << (memory_to_use / megabyte) << " MB of internal memory and "
+              << (memory_to_use / megabyte) << " MiB of internal memory and "
               << p << " thread(s), block size "
               << block_size << ", element size " << sizeof(my_type) << std::endl;
 

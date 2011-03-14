@@ -4,6 +4,7 @@
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
  *  Copyright (C) 2002 Roman Dementiev <dementiev@mpi-sb.mpg.de>
+ *  Copyright (C) 2010 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -13,7 +14,7 @@
 #ifndef STXXL_ALGO_ADAPTOR_HEADER
 #define STXXL_ALGO_ADAPTOR_HEADER
 
-#include <stxxl/bits/mng/mng.h>
+#include <stxxl/bits/mng/bid.h>
 #include <stxxl/bits/mng/adaptor.h>
 
 
@@ -149,13 +150,11 @@ struct RunsToBIDArrayAdaptor2
 BLOCK_ADAPTOR_OPERATORS(RunsToBIDArrayAdaptor2)
 
 
-template <typename trigger_iterator_type, unsigned _BlkSz>
+template <typename trigger_iterator_type>
 struct trigger_entry_iterator
 {
-    typedef trigger_entry_iterator<trigger_iterator_type, _BlkSz> _Self;
-
-    typedef BID<_BlkSz> bid_type;
-    trigger_iterator_type value;
+    typedef trigger_entry_iterator<trigger_iterator_type> _Self;
+    typedef typename std::iterator_traits<trigger_iterator_type>::value_type::bid_type bid_type;
 
     // STL typedefs
     typedef bid_type value_type;
@@ -164,7 +163,7 @@ struct trigger_entry_iterator
     typedef value_type * pointer;
     typedef value_type & reference;
 
-    enum { block_size = _BlkSz };
+    trigger_iterator_type value;
 
     trigger_entry_iterator(const _Self & a) : value(a.value) { }
     trigger_entry_iterator(trigger_iterator_type v) : value(v) { }
@@ -235,6 +234,14 @@ struct trigger_entry_iterator
         return value + a.value;
     }
 };
+
+template <typename Iterator>
+inline
+trigger_entry_iterator<Iterator>
+make_bid_iterator(Iterator iter)
+{
+    return trigger_entry_iterator<Iterator>(iter);
+}
 
 __STXXL_END_NAMESPACE
 

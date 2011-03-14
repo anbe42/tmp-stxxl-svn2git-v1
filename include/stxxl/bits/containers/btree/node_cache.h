@@ -18,11 +18,11 @@
 #endif
 
 #include <stxxl/bits/compat_hash_map.h>
-
-#include <stxxl/bits/io/request.h>
+#include <stxxl/bits/io/request_ptr.h>
 #include <stxxl/bits/mng/mng.h>
-
-#include <stxxl/bits/containers/btree/btree_pager.h>
+#include <stxxl/bits/mng/typed_block.h>
+#include <stxxl/bits/containers/pager.h>
+#include <stxxl/bits/common/error_handling.h>
 
 
 __STXXL_BEGIN_NAMESPACE
@@ -42,7 +42,7 @@ namespace btree
         typedef typename btree_type::key_compare key_compare;
 
         typedef typename btree_type::alloc_strategy_type alloc_strategy_type;
-        typedef stxxl::btree::lru_pager pager_type;
+        typedef stxxl::lru_pager<> pager_type;
 
     private:
         btree_type * btree_;
@@ -90,7 +90,7 @@ namespace btree
         typedef hash_map_type BID2node_type;
 
         BID2node_type BID2node_;
-        stxxl::btree::lru_pager pager_;
+        pager_type pager_;
         block_manager * bm;
         alloc_strategy_type alloc_strategy_;
 
@@ -230,7 +230,7 @@ namespace btree
 
                 assert(BID2node_.find(Node.my_bid()) != BID2node_.end());
                 BID2node_.erase(Node.my_bid());
-                bm->new_blocks<block_type>(1, alloc_strategy_, &new_bid);
+                bm->new_block(alloc_strategy_, new_bid);
 
                 BID2node_[new_bid] = node2kick;
 
@@ -250,7 +250,7 @@ namespace btree
             free_nodes_.pop_back();
             assert(fixed_[free_node] == false);
 
-            bm->new_blocks<block_type>(1, alloc_strategy_, &new_bid);
+            bm->new_block(alloc_strategy_, new_bid);
             BID2node_[new_bid] = free_node;
             node_type & Node = *(nodes_[free_node]);
             Node.init(new_bid);

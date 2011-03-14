@@ -1,9 +1,11 @@
 /***************************************************************************
- *  io/diskqueue.cpp
+ *  io/request_queue_impl_worker.cpp
  *
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
  *  Copyright (C) 2002-2005 Roman Dementiev <dementiev@mpi-sb.mpg.de>
+ *  Copyright (C) 2008, 2009 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
+ *  Copyright (C) 2009 Johannes Singler <singler@ira.uka.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -20,32 +22,32 @@
 
 __STXXL_BEGIN_NAMESPACE
 
-void request_queue_impl_worker::start_thread(void * (*worker)(void *), void * arg)
+void request_queue_impl_worker::start_thread(void * (*worker)(void *), void * arg, thread_type & t, state<thread_state> & s)
 #ifdef STXXL_BOOST_THREADS
 #endif
 {
-    assert(_thread_state() == NOT_RUNNING);
+    assert(s() == NOT_RUNNING);
 #ifdef STXXL_BOOST_THREADS
-    thread = new boost::thread(boost::bind(worker, arg));
+    t = new boost::thread(boost::bind(worker, arg));
 #else
-    check_pthread_call(pthread_create(&thread, NULL, worker, arg));
+    check_pthread_call(pthread_create(&t, NULL, worker, arg));
 #endif
-    _thread_state.set_to(RUNNING);
+    s.set_to(RUNNING);
 }
 
-void request_queue_impl_worker::stop_thread()
+void request_queue_impl_worker::stop_thread(thread_type & t, state<thread_state> & s, semaphore & sem)
 {
-    assert(_thread_state() == RUNNING);
-    _thread_state.set_to(TERMINATING);
+    assert(s() == RUNNING);
+    s.set_to(TERMINATING);
     sem++;
 #ifdef STXXL_BOOST_THREADS
-    thread->join();
-    delete thread;
-    thread = NULL;
+    t->join();
+    delete t;
+    t = NULL;
 #else
-    check_pthread_call(pthread_join(thread, NULL));
+    check_pthread_call(pthread_join(t, NULL));
 #endif
-    _thread_state.set_to(NOT_RUNNING);
+    s.set_to(NOT_RUNNING);
 }
 
 __STXXL_END_NAMESPACE

@@ -4,6 +4,7 @@
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
  *  Copyright (C) 2006 Roman Dementiev <dementiev@ira.uka.de>
+ *  Copyright (C) 2008, 2009 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -13,6 +14,7 @@
 #ifndef _STXXL_DEQUE_H
 #define _STXXL_DEQUE_H
 
+#include <limits>
 #include <stxxl/vector>
 
 
@@ -396,9 +398,8 @@ public:
 //! It is an adaptor of the \c VectorType.
 //! The implementation wraps the elements around
 //! the end of the \c VectorType circularly.
-//! Template parameters:
-//! - \c T the element type
-//! - \c VectorType the type of the underlying vector container,
+//! \tparam T type of the contained objects (POD with no references to internal memory)
+//! \tparam VectorType the type of the underlying vector container,
 //! the default is \c stxxl::vector<T>
 template <class T, class VectorType = stxxl::vector<T> >
 class deque : private noncopyable
@@ -445,13 +446,12 @@ public:
     { }
 
     deque(size_type n)
-        : Vector((std::max)((size_type)(STXXL_DEFAULT_BLOCK_SIZE(T)) / sizeof(T), 2 * n)),
+        : Vector(STXXL_MAX<size_type>(STXXL_DEFAULT_BLOCK_SIZE(T) / sizeof(T), 2 * n)),
           begin_o(0), end_o(n), size_(n)
     { }
 
-    ~deque()
-    {             // empty so far
-    }
+    ~deque()      // empty so far
+    { }
 
     iterator begin()
     {

@@ -4,6 +4,7 @@
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
  *  Copyright (C) 2006 Roman Dementiev <dementiev@ira.uka.de>
+ *  Copyright (C) 2009 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -90,7 +91,7 @@ int main(int argc, char * argv[])
         assert(XXLDeque.empty() == STDDeque.empty());
         assert(XXLDeque.size() == STDDeque.size());
         assert(XXLDeque.end() - XXLDeque.begin() == STDDeque.end() - STDDeque.begin());
-        //assert(std::equal(XXLDeque.begin(),XXLDeque.end(),STDDeque.begin()));
+        //assert(std::equal(XXLDeque.begin(),XXLDeque.end(),STDDeque.begin() _STXXL_FORCE_SEQUENTIAL));
         if (XXLDeque.size() > 0)
         {
             assert(XXLDeque.back() == STDDeque.back());
@@ -99,7 +100,7 @@ int main(int argc, char * argv[])
 
         if (!(i % 100000))
         {
-            assert(std::equal(XXLDeque.begin(), XXLDeque.end(), STDDeque.begin()));
+            assert(std::equal(XXLDeque.begin(), XXLDeque.end(), STDDeque.begin() _STXXL_FORCE_SEQUENTIAL));
             STXXL_MSG("Operations done: " << i << " size: " << STDDeque.size());
         }
     }

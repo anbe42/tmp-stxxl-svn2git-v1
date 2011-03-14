@@ -5,7 +5,7 @@
  *
  *  Copyright (C) 2002-2003 Roman Dementiev <dementiev@mpi-sb.mpg.de>
  *  Copyright (C) 2006 Johannes Singler <singler@ira.uka.de>
- *  Copyright (C) 2008 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
+ *  Copyright (C) 2008-2011 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -15,12 +15,6 @@
 #ifndef STXXL_SORT_HEADER
 #define STXXL_SORT_HEADER
 
-#ifndef STXXL_SORT_OPTIMAL_PREFETCHING
-#define STXXL_SORT_OPTIMAL_PREFETCHING 1
-#endif
-
-
-#include <list>
 #include <functional>
 #include <map>
 
@@ -28,9 +22,11 @@
 #include <stxxl/bits/common/rand.h>
 #include <stxxl/bits/mng/adaptor.h>
 #include <stxxl/bits/common/simple_vector.h>
-#include <stxxl/bits/common/switch.h>
 #include <stxxl/bits/common/settings.h>
 #include <stxxl/bits/mng/block_alloc_interleaved.h>
+#include <stxxl/bits/io/request_operations.h>
+#include <stxxl/bits/algo/sort_base.h>
+#include <stxxl/bits/algo/sort_helper.h>
 #include <stxxl/bits/algo/intksort.h>
 #include <stxxl/bits/algo/adaptor.h>
 #include <stxxl/bits/algo/async_schedule.h>
@@ -40,9 +36,8 @@
 #include <stxxl/bits/algo/losertree.h>
 #include <stxxl/bits/algo/inmemsort.h>
 #include <stxxl/bits/parallel.h>
+#include <stxxl/bits/common/is_sorted.h>
 
-
-//#define STXXL_CHECK_ORDER_IN_SORTS
 
 __STXXL_BEGIN_NAMESPACE
 
@@ -54,57 +49,6 @@ __STXXL_BEGIN_NAMESPACE
  */
 namespace sort_local
 {
-    template <typename BIDTp_, typename ValTp_>
-    struct trigger_entry
-    {
-        typedef BIDTp_ bid_type;
-        typedef ValTp_ value_type;
-
-        bid_type bid;
-        value_type value;
-
-        operator bid_type ()
-        {
-            return bid;
-        }
-    };
-
-    template <typename BIDTp_, typename ValTp_, typename ValueCmp_>
-    struct trigger_entry_cmp : public std::binary_function<trigger_entry<BIDTp_, ValTp_>, trigger_entry<BIDTp_, ValTp_>, bool>
-    {
-        typedef trigger_entry<BIDTp_, ValTp_> trigger_entry_type;
-        ValueCmp_ cmp;
-        trigger_entry_cmp(ValueCmp_ c) : cmp(c) { }
-        trigger_entry_cmp(const trigger_entry_cmp & a) : cmp(a.cmp) { }
-        bool operator () (const trigger_entry_type & a, const trigger_entry_type & b) const
-        {
-            return cmp(a.value, b.value);
-        }
-    };
-
-    template <typename block_type,
-              typename prefetcher_type,
-              typename value_cmp>
-    struct run_cursor2_cmp
-    {
-        typedef run_cursor2<block_type, prefetcher_type> cursor_type;
-        value_cmp cmp;
-
-        run_cursor2_cmp(value_cmp c) : cmp(c) { }
-        run_cursor2_cmp(const run_cursor2_cmp & a) : cmp(a.cmp) { }
-        inline bool operator () (const cursor_type & a, const cursor_type & b)
-        {
-            if (UNLIKELY(b.empty()))
-                return true;
-            // sentinel emulation
-            if (UNLIKELY(a.empty()))
-                return false;
-            //sentinel emulation
-
-            return (cmp(a.current(), b.current()));
-        }
-    };
-
     template <typename block_type, typename bid_type>
     struct read_next_after_write_completed
     {
@@ -113,7 +57,7 @@ namespace sort_local
         request_ptr * req;
         void operator () (request * /*completed_req*/)
         {
-            * req = block->read(bid);
+            *req = block->read(bid);
         }
     };
 
@@ -158,10 +102,10 @@ namespace sort_local
         read_next_after_write_completed<block_type, bid_type> * next_run_reads =
             new read_next_after_write_completed<block_type, bid_type>[m2];
 
-        disk_queues::get_instance()->set_priority_op(disk_queue::WRITE);
+        disk_queues::get_instance()->set_priority_op(request_queue::WRITE);
 
         int_type i;
-        int_type run_size = 0, next_run_size = 0;
+        int_type run_size = 0;
 
         assert(nruns >= 2);
 
@@ -189,7 +133,9 @@ namespace sort_local
             run_type * run = runs[k];
             run_size = run->size();
             assert(run_size == m2);
-            next_run_size = runs[k + 1]->size();
+            #ifndef NDEBUG
+            int_type next_run_size = runs[k + 1]->size();
+            #endif
             assert((next_run_size == m2) || (next_run_size <= m2 && k == nruns - 2));
 
             STXXL_VERBOSE1("stxxl::create_runs start waiting read_reqs1");
@@ -198,18 +144,10 @@ namespace sort_local
             for (i = 0; i < run_size; ++i)
                 bm->delete_block(bids1[i]);
 
-            if (block_type::has_filler)
-                stable_sort_switch(stable, 
-                    ArrayOfSequencesIterator<
-                        block_type, typename block_type::value_type, block_type::size
-                        >(Blocks1, 0),
-                    ArrayOfSequencesIterator<
-                        block_type, typename block_type::value_type, block_type::size
-                        >(Blocks1, run_size * block_type::size),
-                    cmp);
-            else
-                stable_sort_switch(stable, Blocks1[0].elem, Blocks1[run_size].elem, cmp);
-
+            stable_sort_switch(stable,
+                 make_element_iterator(Blocks1, 0),
+                 make_element_iterator(Blocks1, run_size * block_type::size),
+                 cmp);
 
             STXXL_VERBOSE1("stxxl::create_runs start waiting write_reqs");
             if (k > 0)
@@ -245,18 +183,10 @@ namespace sort_local
         for (i = 0; i < run_size; ++i)
             bm->delete_block(bids1[i]);
 
-        if (block_type::has_filler) {
-            stable_sort_switch(stable, 
-                ArrayOfSequencesIterator<
-                    block_type, typename block_type::value_type, block_type::size
-                    >(Blocks1, 0),
-                ArrayOfSequencesIterator<
-                    block_type, typename block_type::value_type, block_type::size
-                    >(Blocks1, run_size * block_type::size),
-                cmp);
-        } else {
-            stable_sort_switch(stable, Blocks1[0].elem, Blocks1[run_size].elem, cmp);
-        }
+        stable_sort_switch(stable,
+             make_element_iterator(Blocks1, 0),
+             make_element_iterator(Blocks1, run_size * block_type::size),
+             cmp);
 
         STXXL_VERBOSE1("stxxl::create_runs start waiting write_reqs");
         wait_all(write_reqs, m2);
@@ -292,7 +222,6 @@ namespace sort_local
     {
         typedef typename block_type::value_type value_type;
 
-        //STXXL_VERBOSE1("check_sorted_runs  Runs: "<<nruns);
         STXXL_MSG("check_sorted_runs  Runs: " << nruns);
         unsigned_type irun = 0;
         for (irun = 0; irun < nruns; ++irun)
@@ -347,14 +276,9 @@ namespace sort_local
                         return false;
                     }
                 }
-                if (!stxxl::is_sorted(
-                        ArrayOfSequencesIterator<
-                            block_type, typename block_type::value_type, block_type::size
-                            >(blocks, 0),
-                        ArrayOfSequencesIterator<
-                            block_type, typename block_type::value_type, block_type::size
-                            >(blocks, nelements),
-                        cmp))
+                if (!stxxl::is_sorted(make_element_iterator(blocks, 0),
+                                      make_element_iterator(blocks, nelements),
+                                      cmp))
                 {
                     STXXL_MSG("check_sorted_runs  wrong order in the run " << irun);
                     STXXL_MSG("Data in blocks:");
@@ -387,11 +311,11 @@ namespace sort_local
     template <typename block_type, typename run_type, typename value_cmp>
     void merge_runs(run_type ** in_runs, int_type nruns, run_type * out_run, unsigned_type _m, value_cmp cmp, bool stable)
     {
-        typedef typename block_type::bid_type bid_type;
         typedef typename block_type::value_type value_type;
+        typedef typename run_type::value_type trigger_entry_type;
         typedef block_prefetcher<block_type, typename run_type::iterator> prefetcher_type;
         typedef run_cursor2<block_type, prefetcher_type> run_cursor_type;
-        typedef run_cursor2_cmp<block_type, prefetcher_type, value_cmp> run_cursor2_cmp_type;
+        typedef sort_helper::run_cursor2_cmp<block_type, prefetcher_type, value_cmp> run_cursor2_cmp_type;
 
         run_type consume_seq(out_run->size());
 
@@ -411,7 +335,7 @@ namespace sort_local
         }
 
         std::stable_sort(consume_seq.begin(), consume_seq.end(),
-                         trigger_entry_cmp<bid_type, value_type, value_cmp>(cmp));
+                         sort_helper::trigger_entry_cmp<trigger_entry_type, value_cmp>(cmp) _STXXL_SORT_TRIGGER_FORCE_SEQUENTIAL);
 
         int_type disks_number = config::get_instance()->disks_number();
 
@@ -473,7 +397,7 @@ namespace sort_local
                 STXXL_VERBOSE1("pull block   " << buffer << " " << seq_number << " " << seq_buffers[seq_number].size());
             }
 
-            for (int_type i = 0; i < nruns; i++)                //initialize sequences
+            for (int_type i = 0; i < nruns; i++)                // initialize sequences
             {
                 if(!seq_buffers[i].empty())
                     seqs[i] = std::make_pair(seq_buffers[i].front()->begin(), seq_buffers[i].front()->end());
@@ -481,52 +405,34 @@ namespace sort_local
                     seqs[i] = std::make_pair<typename block_type::iterator, typename block_type::iterator>(NULL, NULL);
             }
 
- #ifdef STXXL_CHECK_ORDER_IN_SORTS
+ #if STXXL_CHECK_ORDER_IN_SORTS
             value_type last_elem = cmp.min_value();
  #endif
+            diff_type num_currently_mergeable = 0;
 
             STXXL_VERBOSE1("out_run_size " << out_run_size);
-            for (int_type j = 0; j < out_run_size; ++j)                 //for the whole output run, out_run_size is in blocks
+            for (int_type j = 0; j < out_run_size; ++j)                 // for the whole output run, out_run_size is in blocks
             {
-                diff_type rest = block_type::size;                      //elements still to merge for this output block
+                diff_type rest = block_type::size;                      // elements still to merge for this output block
 
                 STXXL_VERBOSE1("output block " << j);
                 do {    //for each block of output
-                    value_type * min_last_element = NULL;               //no element found yet
-                    diff_type total_size = 0;
-
-                    for (seqs_size_type i = 0; i < seqs.size(); i++)
+                    if (num_currently_mergeable < rest)
                     {
-                        if (seqs[i].first == seqs[i].second)
-                            continue; //run empty
-
-                        if (min_last_element == NULL)
-                            min_last_element = &(*(seqs[i].second - 1));
+                        if (prefetcher.empty())
+                        {
+                            // anything remaining is already in memory
+                            num_currently_mergeable = (out_run_size - j) * block_type::size
+                                                      - (block_type::size - rest);
+                        }
                         else
-                            min_last_element = cmp(*min_last_element, *(seqs[i].second - 1)) ? min_last_element : &(*(seqs[i].second - 1));
-
-                        total_size += seqs[i].second - seqs[i].first;
-                        STXXL_VERBOSE1("last " << *(seqs[i].second - 1) << " block size " << (seqs[i].second - seqs[i].first));
+                        {
+                            num_currently_mergeable = sort_helper::count_elements_less_equal(
+                                seqs, consume_seq[prefetcher.pos()].value, cmp);
+                        }
                     }
 
-                    if(total_size == 0)
-                        break;
-
-                    STXXL_VERBOSE1("min_last_element " << min_last_element << " total size " << total_size + (block_type::size - rest));
-
-                    diff_type less_equal_than_min_last = 0;
-                    //locate this element in all sequences
-                    for (seqs_size_type i = 0; i < seqs.size(); i++)
-                    {
-                        if (seqs[i].first == seqs[i].second)
-                            continue; //empty subsequence
-
-                        typename block_type::iterator position = std::upper_bound(seqs[i].first, seqs[i].second, *min_last_element, cmp);
-                        STXXL_VERBOSE1("greater equal than " << position - seqs[i].first);
-                        less_equal_than_min_last += position - seqs[i].first;
-                    }
-
-                    ptrdiff_t output_size = (std::min)(less_equal_than_min_last, rest);         //at most rest elements
+                    diff_type output_size = STXXL_MIN(num_currently_mergeable, rest);   // at most rest elements
 
                     STXXL_VERBOSE1("before merge " << output_size);
 
@@ -534,43 +440,16 @@ namespace sort_local
                         stxxl::parallel::multiway_merge_stable(seqs.begin(), seqs.end(), out_buffer->end() - rest, cmp, output_size);
                     else
                         stxxl::parallel::multiway_merge(seqs.begin(), seqs.end(), out_buffer->end() - rest, cmp, output_size);
-                    //sequence iterators are progressed appropriately
+                    // sequence iterators are progressed appropriately
+
+                    rest -= output_size;
+                    num_currently_mergeable -= output_size;
 
                     STXXL_VERBOSE1("after merge");
 
-                    (*out_run)[j].value = (*out_buffer)[0];                     //save smallest value
+                    sort_helper::refill_or_remove_empty_sequences(seqs, buffers, prefetcher);
 
-                    rest -= output_size;
-
-                    //gather consumed blocks
-                    std::vector<block_type*> consumed_blocks;
-                    for (seqs_size_type i = 0; i < seqs.size(); i++)
-                    {
-                        if (seqs[i].first == seqs[i].second && !seq_buffers[i].empty())            //run i has run empty
-                        {
-                            consumed_blocks.push_back(seq_buffers[i].front());
-
-                            seq_buffers[i].pop();
-                            if(!seq_buffers[i].empty())
-                                seqs[i] = std::make_pair(seq_buffers[i].front()->begin(), seq_buffers[i].front()->end());
-                            else
-                                seqs[i] = std::make_pair<typename block_type::iterator, typename block_type::iterator>(NULL, NULL);
-                        }
-                    }
-
-                    //refill consumed blocks
-                    while(!consumed_blocks.empty() && prefetcher.block_consumed(consumed_blocks.back()))
-                    {
-                        int seq_number = seq_of_block[consume_seq[current_block++]];
-                        seq_buffers[seq_number].push(consumed_blocks.back());
-                        seqs[seq_number] = std::make_pair(seq_buffers[seq_number].front()->begin(), seq_buffers[seq_number].front()->end());
-                        STXXL_VERBOSE1("pull block   " << consumed_blocks.back() << " " << seq_number << " " << seq_buffers[seq_number].size());
-
-                        consumed_blocks.pop_back();
-                    }
-                } while (rest > 0);
-
- #ifdef STXXL_CHECK_ORDER_IN_SORTS
+ #if STXXL_CHECK_ORDER_IN_SORTS
                 if (!stxxl::is_sorted(out_buffer->begin(), out_buffer->end(), cmp))
                 {
                     for (value_type * i = out_buffer->begin() + 1; i != out_buffer->end(); i++)
@@ -581,12 +460,13 @@ namespace sort_local
                     assert(false);
                 }
 
-                if (j > 0) //do not check in first iteration
+                if (j > 0) // do not check in first iteration
                     assert(cmp((*out_buffer)[0], last_elem) == false);
 
                 last_elem = (*out_buffer)[block_type::size - 1];
  #endif
 
+                (*out_run)[j].value = (*out_buffer)[0];                              // save smallest value
 
                 out_buffer = writer.write(out_buffer, (*out_run)[j].bid);
             }
@@ -594,17 +474,17 @@ namespace sort_local
 // end of STL-style merging
 
 #else
-            assert(false);
+            STXXL_THROW_UNREACHABLE();
 #endif
         }
         else
         {
 // begin of native merging procedure
 
-            loser_tree<run_cursor_type, run_cursor2_cmp_type, block_type::size>
+            loser_tree<run_cursor_type, run_cursor2_cmp_type>
             losers(&prefetcher, nruns, run_cursor2_cmp_type(cmp));
 
-#ifdef STXXL_CHECK_ORDER_IN_SORTS
+#if STXXL_CHECK_ORDER_IN_SORTS
             value_type last_elem = cmp.min_value();
 #endif
 
@@ -612,10 +492,10 @@ namespace sort_local
             {
                 //stable variant fails here
                 assert(!stable);
-                losers.multi_merge(out_buffer->elem);
+                losers.multi_merge(out_buffer->elem, out_buffer->elem + block_type::size);
                 (*out_run)[i].value = *(out_buffer->elem);
 
-#ifdef STXXL_CHECK_ORDER_IN_SORTS
+#if STXXL_CHECK_ORDER_IN_SORTS
                 assert(stxxl::is_sorted(
                            out_buffer->begin(),
                            out_buffer->end(),
@@ -652,7 +532,7 @@ namespace sort_local
               typename alloc_strategy,
               typename input_bid_iterator,
               typename value_cmp>
-    simple_vector<trigger_entry<typename block_type::bid_type, typename block_type::value_type> > *
+    simple_vector<sort_helper::trigger_entry<block_type> > *
     sort_blocks(input_bid_iterator input_bids,
                 unsigned_type _n,
                 unsigned_type _m,
@@ -662,7 +542,7 @@ namespace sort_local
     {
         typedef typename block_type::value_type type;
         typedef typename block_type::bid_type bid_type;
-        typedef trigger_entry<bid_type, type> trigger_entry_type;
+        typedef sort_helper::trigger_entry<block_type> trigger_entry_type;
         typedef simple_vector<trigger_entry_type> run_type;
         typedef typename interleaved_alloc_traits<alloc_strategy>::strategy interleaved_alloc_strategy;
 
@@ -672,9 +552,7 @@ namespace sort_local
         unsigned_type nruns = full_runs + partial_runs;
         unsigned_type i;
 
-        config * cfg = config::get_instance();
         block_manager * mng = block_manager::get_instance();
-        const unsigned_type ndisks = cfg->disks_number();
 
         //STXXL_VERBOSE ("n=" << _n << " nruns=" << nruns << "=" << full_runs << "+" << partial_runs);
 
@@ -689,14 +567,8 @@ namespace sort_local
         if (partial_runs)
             runs[i] = new run_type(_n - full_runs * m2);
 
-
         for (i = 0; i < nruns; ++i)
-        {
-            // FIXME: why has an alloc_strategy to take two arguments disk_index.begin(), disk_index.end() ???
-            mng->new_blocks(alloc_strategy(0, ndisks),
-                            trigger_entry_iterator<typename run_type::iterator, block_type::raw_size>(runs[i]->begin()),
-                            trigger_entry_iterator<typename run_type::iterator, block_type::raw_size>(runs[i]->end()));
-        }
+            mng->new_blocks(alloc_strategy(), make_bid_iterator(runs[i]->begin()), make_bid_iterator(runs[i]->end()));
 
         sort_local::create_runs<block_type,
                                 run_type,
@@ -707,17 +579,14 @@ namespace sort_local
 
         double io_wait_after_rf = stats::get_instance()->get_io_wait_time();
 
-        disk_queues::get_instance()->set_priority_op(disk_queue::WRITE);
+        disk_queues::get_instance()->set_priority_op(request_queue::WRITE);
 
-        // Optimal merging: merge r = pow(nruns,1/ceil(log(nruns)/log(m))) runs at once
-
-        const int_type merge_factor = static_cast<int_type>(ceil(pow(nruns, 1. / ceil(log(double(nruns)) /
-                                                                                      log(double(_m))))));
+        const int_type merge_factor = optimal_merge_factor(nruns, _m);
         run_type ** new_runs;
 
         while (nruns > 1)
         {
-            int_type new_nruns = STXXL_DIVRU(nruns, merge_factor);
+            int_type new_nruns = div_ceil(nruns, merge_factor);
             STXXL_VERBOSE("Starting new merge phase: nruns: " << nruns <<
                           " opt_merge_factor: " << merge_factor << " m:" << _m << " new_nruns: " << new_nruns);
 
@@ -739,7 +608,7 @@ namespace sort_local
                 runs_left -= runs2merge;
             }
             // allocate blocks for the new runs
-            if (cur_out_run == 1 && blocks_in_new_run == int_type(_n) && (input_bids->storage->get_id() == -1))
+            if (cur_out_run == 1 && blocks_in_new_run == int_type(_n) && !input_bids->is_managed())
             {
                 // if we sort a file we can reuse the input bids for the output
                 input_bid_iterator cur = input_bids;
@@ -749,23 +618,23 @@ namespace sort_local
                 }
 
                 bid_type & firstBID = (*new_runs[0])[0].bid;
-                if (firstBID.storage->get_id() != -1)
+                if (firstBID.is_managed())
                 {
                     // the first block does not belong to the file
                     // need to reallocate it
-                    mng->new_blocks(FR(), &firstBID, (&firstBID) + 1);
+                    mng->new_block(FR(), firstBID);
                 }
                 bid_type & lastBID = (*new_runs[0])[_n - 1].bid;
-                if (lastBID.storage->get_id() != -1)
+                if (lastBID.is_managed())
                 {
                     // the first block does not belong to the file
                     // need to reallocate it
-                    mng->new_blocks(FR(), &lastBID, (&lastBID) + 1);
+                    mng->new_block(FR(), lastBID);
                 }
             }
             else
             {
-                mng->new_blocks(interleaved_alloc_strategy(new_nruns, 0, ndisks),
+                mng->new_blocks(interleaved_alloc_strategy(new_nruns, alloc_strategy()),
                                 RunsToBIDArrayAdaptor2<block_type::raw_size, run_type>(new_runs, 0, new_nruns, blocks_in_new_run),
                                 RunsToBIDArrayAdaptor2<block_type::raw_size, run_type>(new_runs, _n, new_nruns, blocks_in_new_run));
             }
@@ -775,7 +644,7 @@ namespace sort_local
             while (runs_left > 0)
             {
                 int_type runs2merge = STXXL_MIN(runs_left, merge_factor);
-#ifdef STXXL_CHECK_ORDER_IN_SORTS
+#if STXXL_CHECK_ORDER_IN_SORTS
                 assert((check_sorted_runs<block_type, run_type, value_cmp>(runs + nruns - runs_left, runs2merge, m2, cmp)));
 #endif
                 STXXL_VERBOSE("Merging " << runs2merge << " runs");
@@ -799,14 +668,59 @@ namespace sort_local
                       after_runs_creation - begin << " s");
         STXXL_VERBOSE("Time in I/O wait(rf): " << io_wait_after_rf << " s");
         STXXL_VERBOSE(*stats::get_instance());
-        UNUSED(begin + io_wait_after_rf);
+        STXXL_UNUSED(begin + after_runs_creation + end + io_wait_after_rf);
 
         return result;
     }
 }
 
 
-//! \brief External sorting routine for records that allow only comparisons
+/*! \page comparison Comparison concept
+
+   Model of \b Comparison concept must:
+   - provide \b operator(a,b) that returns comparison result of two user types,
+     must define strict weak ordering
+   - provide \b max_value method that returns a value that is \b strictly \b greater than all
+   other objects of user type,
+   - provide \b min_value method that returns a value that is \b strictly \b less than all
+   other objects of user type,
+   - \b Note: when using unsigned integral types as key in user types, the value 0
+   cannot be used as a key value of the data to be sorted because it would
+   conflict with the sentinel value returned by \b min_value
+
+   Example: comparator class \b my_less_int
+ \verbatim
+   struct my_less_int
+   {
+    bool operator() (int a, int b) const
+    {
+        return a < b;
+    }
+    int min_value() const { return std::numeric_limits<int>::min(); };
+    int max_value() const { return std::numeric_limits<int>::max(); };
+   };
+ \endverbatim
+
+   Example: comparator class \b my_less, could be instantiated as e.g.
+      \b my_less<int> , \b my_less<unsigned long> , ...
+ \verbatim
+   template <typename Tp>
+   struct my_less
+   {
+    typedef Tp value_type;
+    bool operator() (const value_type & a, const value_type & b) const
+    {
+        return a < b;
+    }
+    value_type min_value() const { return std::numeric_limits<value_type>::min(); };
+    value_type max_value() const { return std::numeric_limits<value_type>::max(); };
+   };
+ \endverbatim
+
+ */
+
+
+//! \brief Sort records comparison-based
 //! \param first object of model of \c ext_random_access_iterator concept
 //! \param last object of model of \c ext_random_access_iterator concept
 //! \param cmp comparison object
@@ -816,16 +730,12 @@ namespace sort_local
 template <typename ExtIterator_, typename StrictWeakOrdering_>
 void sort(ExtIterator_ first, ExtIterator_ last, StrictWeakOrdering_ cmp, unsigned_type M, bool stable = false)
 {
-    typedef simple_vector<sort_local::trigger_entry<typename ExtIterator_::bid_type,
-                                                    typename ExtIterator_::vector_type::value_type> > run_type;
+    sort_helper::verify_sentinel_strict_weak_ordering(cmp);
+
+    typedef simple_vector<sort_helper::trigger_entry<typename ExtIterator_::block_type> > run_type;
 
     typedef typename ExtIterator_::vector_type::value_type value_type;
     typedef typename ExtIterator_::block_type block_type;
-
-    // verify strict weak ordering of the sentinels
-    assert(!cmp(cmp.min_value(), cmp.min_value()));
-    assert(cmp(cmp.min_value(), cmp.max_value()));
-    assert(!cmp(cmp.max_value(), cmp.max_value()));
 
     unsigned_type n = 0;
 
@@ -839,7 +749,9 @@ void sort(ExtIterator_ first, ExtIterator_ last, StrictWeakOrdering_ cmp, unsign
     }
     else
     {
-        assert(2 * block_type::raw_size * sort_memory_usage_factor() <= M);
+        if (!(2 * block_type::raw_size * sort_memory_usage_factor() <= M)) {
+            throw bad_parameter("stxxl::sort(): INSUFFICIENT MEMORY provided, please increase parameter 'M'");
+        }
 
         if (first.block_offset())
         {
@@ -852,8 +764,8 @@ void sort(ExtIterator_ first, ExtIterator_ last, StrictWeakOrdering_ cmp, unsign
                 request_ptr req;
 
                 req = first_block->read(*first.bid());
-                mng->new_blocks(FR(), &first_bid, (&first_bid) + 1);                // try to overlap
-                mng->new_blocks(FR(), &last_bid, (&last_bid) + 1);
+                mng->new_block(FR(), first_bid);                // try to overlap
+                mng->new_block(FR(), last_bid);
                 req->wait();
 
 
@@ -893,9 +805,9 @@ void sort(ExtIterator_ first, ExtIterator_ last, StrictWeakOrdering_ cmp, unsign
                 run_type * out =
                     sort_local::sort_blocks<
                         typename ExtIterator_::block_type,
-                        typename ExtIterator_::vector_type::alloc_strategy,
+                        typename ExtIterator_::vector_type::alloc_strategy_type,
                         typename ExtIterator_::bids_container_iterator>
-                                        (first.bid(), n, M / sort_memory_usage_factor() / block_type::raw_size, cmp, stable);
+                        (first.bid(), n, M / sort_memory_usage_factor() / block_type::raw_size, cmp, stable);
 
 
                 first_block = new typename ExtIterator_::block_type;
@@ -968,7 +880,7 @@ void sort(ExtIterator_ first, ExtIterator_ last, StrictWeakOrdering_ cmp, unsign
                 request_ptr req;
 
                 req = first_block->read(*first.bid());
-                mng->new_blocks(FR(), &first_bid, (&first_bid) + 1);                // try to overlap
+                mng->new_block(FR(), first_bid);                // try to overlap
                 req->wait();
 
 
@@ -992,9 +904,9 @@ void sort(ExtIterator_ first, ExtIterator_ last, StrictWeakOrdering_ cmp, unsign
                 run_type * out =
                     sort_local::sort_blocks<
                         typename ExtIterator_::block_type,
-                        typename ExtIterator_::vector_type::alloc_strategy,
+                        typename ExtIterator_::vector_type::alloc_strategy_type,
                         typename ExtIterator_::bids_container_iterator>
-                                        (first.bid(), n, M / sort_memory_usage_factor() / block_type::raw_size, cmp, stable);
+                        (first.bid(), n, M / sort_memory_usage_factor() / block_type::raw_size, cmp, stable);
 
 
                 first_block = new typename ExtIterator_::block_type;
@@ -1052,7 +964,7 @@ void sort(ExtIterator_ first, ExtIterator_ last, StrictWeakOrdering_ cmp, unsign
                 unsigned_type i;
 
                 req = last_block->read(*last.bid());
-                mng->new_blocks(FR(), &last_bid, (&last_bid) + 1);
+                mng->new_block(FR(), last_bid);
                 req->wait();
 
 
@@ -1075,9 +987,9 @@ void sort(ExtIterator_ first, ExtIterator_ last, StrictWeakOrdering_ cmp, unsign
                 run_type * out =
                     sort_local::sort_blocks<
                         typename ExtIterator_::block_type,
-                        typename ExtIterator_::vector_type::alloc_strategy,
+                        typename ExtIterator_::vector_type::alloc_strategy_type,
                         typename ExtIterator_::bids_container_iterator>
-                                        (first.bid(), n, M / sort_memory_usage_factor() / block_type::raw_size, cmp, stable);
+                        (first.bid(), n, M / sort_memory_usage_factor() / block_type::raw_size, cmp, stable);
 
 
                 last_block = new typename ExtIterator_::block_type;
@@ -1124,9 +1036,9 @@ void sort(ExtIterator_ first, ExtIterator_ last, StrictWeakOrdering_ cmp, unsign
 
                 run_type * out =
                     sort_local::sort_blocks<typename ExtIterator_::block_type,
-                                            typename ExtIterator_::vector_type::alloc_strategy,
+                                            typename ExtIterator_::vector_type::alloc_strategy_type,
                                             typename ExtIterator_::bids_container_iterator>
-                                        (first.bid(), n, M / sort_memory_usage_factor() / block_type::raw_size, cmp, stable);
+                        (first.bid(), n, M / sort_memory_usage_factor() / block_type::raw_size, cmp, stable);
 
                 typename run_type::iterator it = out->begin();
                 typename ExtIterator_::bids_container_iterator cur_bid = first.bid();
@@ -1141,8 +1053,9 @@ void sort(ExtIterator_ first, ExtIterator_ last, StrictWeakOrdering_ cmp, unsign
         }
     }
 
-#ifdef STXXL_CHECK_ORDER_IN_SORTS
-    assert(stxxl::is_sorted(first, last, cmp));
+#if STXXL_CHECK_ORDER_IN_SORTS
+    typedef typename ExtIterator_::const_iterator const_iterator;
+    assert(stxxl::is_sorted(const_iterator(first), const_iterator(last), cmp));
 #endif
 }
 

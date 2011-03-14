@@ -6,6 +6,8 @@
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
  *  Copyright (C) 2005 Roman Dementiev <dementiev@ira.uka.de>
+ *  Copyright (C) 2008, 2010 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
+ *  Copyright (C) 2009, 2010 Johannes Singler <singler@kit.edu>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -21,8 +23,9 @@
 
 #ifdef BOOST_MSVC
 
-#include <stxxl/bits/io/file_request_basic.h>
+#include <stxxl/bits/io/file.h>
 #include <stxxl/bits/io/request.h>
+#include <windows.h>
 
 
 __STXXL_BEGIN_NAMESPACE
@@ -31,14 +34,18 @@ __STXXL_BEGIN_NAMESPACE
 //! \{
 
 //! \brief Base for Windows file system implementations
-class wfs_file_base : public file_request_basic
+class wfs_file_base : public virtual file
 {
 protected:
     mutex fd_mutex;        // sequentialize function calls involving file_des
     HANDLE file_des;       // file descriptor
     int mode_;             // open mode
-    wfs_file_base(const std::string & filename, int mode, int disk);
+    const std::string filename;
+    offset_type bytes_per_sector;
+    bool locked;
+    wfs_file_base(const std::string & filename, int mode);
     offset_type _size();
+    void close();
 
 public:
     ~wfs_file_base();
@@ -46,6 +53,7 @@ public:
     void set_size(offset_type newsize);
     void lock();
     const char * io_type() const;
+    void remove();
 };
 
 //! \}

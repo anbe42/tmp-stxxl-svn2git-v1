@@ -4,6 +4,7 @@
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
  *  Copyright (C) 2003 Roman Dementiev <dementiev@mpi-sb.mpg.de>
+ *  Copyright (C) 2009 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -15,7 +16,7 @@
 #include <malloc.h>
 #endif
 #include <cstdlib>
-#include <stxxl/bits/common/utils.h>
+#include <stxxl/bits/verbose.h>
 
 
 void print_malloc_stats()
@@ -42,7 +43,6 @@ void print_malloc_stats()
 
 int main(int argc, char * argv[])
 {
-    using std::cin;
     using std::cout;
     using std::cerr;
     using std::endl;
@@ -55,9 +55,6 @@ int main(int argc, char * argv[])
     sbrk(128 * 1024 * 1024);
     cout << "Nothing allocated" << endl;
     print_malloc_stats();
-    cout << "Press any non-whitespace key followed by <Return> to continue or Ctrl-C to abort" << endl;
-    char tmp;
-    cin >> tmp;
     const unsigned bytes = atoi(argv[1]);
     char * ptr = new char[bytes];
     cout << "Allocated " << bytes << " bytes" << endl;

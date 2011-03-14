@@ -16,6 +16,8 @@
 #ifndef STXXL_PQ_HELPERS_HEADER
 #define STXXL_PQ_HELPERS_HEADER
 
+#include <queue>
+
 __STXXL_BEGIN_NAMESPACE
 
 //! \addtogroup stlcontinternals
@@ -122,7 +124,8 @@ namespace priority_queue_local
          */
         void sort_to(value_type * target)
         {
-            std::sort(heap.begin(), heap.begin() + current_size, comp);
+            potentially_parallel::
+            sort(heap.begin(), heap.begin() + current_size, comp);
             std::reverse_copy(heap.begin(), heap.begin() + current_size, target);
         }
 
@@ -156,7 +159,7 @@ namespace priority_queue_local
 
 
 /**
- * \brief Similar target std::stack, with the following differences:
+ * \brief Similar to std::stack, with the following differences:
      * - Maximum size is fixed at compilation time, so an array can be used.
      * - Can be cleared "at once", without reallocation.
      */

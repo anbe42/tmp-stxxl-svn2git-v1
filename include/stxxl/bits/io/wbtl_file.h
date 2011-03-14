@@ -6,6 +6,7 @@
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
  *  Copyright (C) 2008-2009 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
+ *  Copyright (C) 2009 Johannes Singler <singler@ira.uka.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -15,9 +16,15 @@
 #ifndef STXXL_WBTL_FILE_HEADER
 #define STXXL_WBTL_FILE_HEADER
 
+#ifndef STXXL_HAVE_WBTL_FILE
+#define STXXL_HAVE_WBTL_FILE 1
+#endif
+
+#if STXXL_HAVE_WBTL_FILE
+
 #include <map>
 
-#include <stxxl/bits/io/file_request_basic.h>
+#include <stxxl/bits/io/disk_queued_file.h>
 
 
 __STXXL_BEGIN_NAMESPACE
@@ -27,7 +34,7 @@ __STXXL_BEGIN_NAMESPACE
 
 //! \brief Implementation of file based on buffered writes and
 //!        block remapping via a translation layer.
-class wbtl_file : public file_request_basic
+class wbtl_file : public disk_queued_file
 {
     typedef std::pair<offset_type, offset_type> place;
     typedef std::map<offset_type, offset_type> sortseq;
@@ -77,17 +84,19 @@ public:
         file * backend_file,
         size_type write_buffer_size,
         int write_buffers = 2,
-        int disk = -1);
+        int queue_id = DEFAULT_QUEUE,
+        int allocator_id = NO_ALLOCATOR);
     ~wbtl_file();
     offset_type size();
     void set_size(offset_type newsize);
     void lock();
-    void serve(const request * req) throw(io_error);
-    void delete_region(offset_type offset, size_type size);
+    void serve(const request * req) throw (io_error);
+    void discard(offset_type offset, offset_type size);
     const char * io_type() const;
 
 private:
     void _add_free_region(offset_type offset, offset_type size);
+
 protected:
     void sread(void * buffer, offset_type offset, size_type bytes);
     void swrite(void * buffer, offset_type offset, size_type bytes);
@@ -100,4 +109,6 @@ protected:
 
 __STXXL_END_NAMESPACE
 
-#endif // !STXXL_WBTL_FILE_HEADER
+#endif  // #if STXXL_HAVE_WBTL_FILE
+
+#endif  // !STXXL_WBTL_FILE_HEADER

@@ -4,7 +4,8 @@
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
  *  Copyright (C) 2002 Roman Dementiev <dementiev@mpi-sb.mpg.de>
- *  Copyright (C) 2008 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
+ *  Copyright (C) 2008, 2009 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
+ *  Copyright (C) 2009 Johannes Singler <singler@ira.uka.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -25,15 +26,20 @@ __STXXL_BEGIN_NAMESPACE
 //! \addtogroup iolayer
 //! \{
 
-class request_queue_impl_qwqr: public request_queue_impl_worker, public disk_queue
+class request_queue_impl_qwqr : public request_queue_impl_worker
 {
 private:
     typedef request_queue_impl_qwqr self;
+    typedef std::list<request_ptr> queue_type;
 
     mutex write_mutex;
     mutex read_mutex;
-    std::list<request_ptr> write_queue;
-    std::list<request_ptr> read_queue;
+    queue_type write_queue;
+    queue_type read_queue;
+
+    state<thread_state> _thread_state;
+    thread_type thread;
+    semaphore sem;
 
     static const priority_op _priority_op = WRITE;
 
@@ -50,7 +56,7 @@ public:
     void set_priority_op(priority_op op)
     {
         //_priority_op = op;
-        UNUSED(op);
+        STXXL_UNUSED(op);
     }
     void add_request(request_ptr & req);
     bool cancel_request(request_ptr & req);

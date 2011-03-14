@@ -4,6 +4,7 @@
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
  *  Copyright (C) 2006 Roman Dementiev <dementiev@ira.uka.de>
+ *  Copyright (C) 2009 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -18,7 +19,10 @@
 //! DOI: 10.1002/spe.844
 
 
+#include <limits>
 #include <stxxl/priority_queue>
+#include <stxxl/stats>
+#include <stxxl/timer>
 
 #define TOTAL_PQ_MEM_SIZE    (768 * 1024 * 1024)
 
@@ -104,10 +108,7 @@ inline long long unsigned myrand()
 
 void run_stxxl_insert_all_delete_all(stxxl::uint64 ops)
 {
-    stxxl::prefetch_pool<block_type> p_pool(PREFETCH_POOL_SIZE / BLOCK_SIZE);
-    stxxl::write_pool<block_type> w_pool(WRITE_POOL_SIZE / BLOCK_SIZE);
-
-    pq_type PQ(p_pool, w_pool);
+    pq_type PQ(PREFETCH_POOL_SIZE, WRITE_POOL_SIZE);
 
     stxxl::uint64 i;
 
@@ -139,7 +140,7 @@ void run_stxxl_insert_all_delete_all(stxxl::uint64 ops)
     std::cout << stxxl::stats_data(*stxxl::stats::get_instance()) - stats_begin;
 
     ////////////////////////////////////////////////
- 
+
     stats_begin = *stxxl::stats::get_instance();
     Timer.reset();
     Timer.start();
@@ -167,10 +168,7 @@ void run_stxxl_insert_all_delete_all(stxxl::uint64 ops)
 
 void run_stxxl_intermixed(stxxl::uint64 ops)
 {
-    stxxl::prefetch_pool<block_type> p_pool(PREFETCH_POOL_SIZE / BLOCK_SIZE);
-    stxxl::write_pool<block_type> w_pool(WRITE_POOL_SIZE / BLOCK_SIZE);
-
-    pq_type PQ(p_pool, w_pool);
+    pq_type PQ(PREFETCH_POOL_SIZE, WRITE_POOL_SIZE);
 
     stxxl::uint64 i;
 

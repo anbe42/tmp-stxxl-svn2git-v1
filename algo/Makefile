@@ -15,13 +15,6 @@ async_schedule.$(OBJEXT): async_schedule.cpp
 DEPENDENCIES = $(COMMON_FILES) $(IO_LAYER_FILES) $(MNG_LAYER_FILES) $(CONTAINER_FILES) $(ALGO_FILES)
 
 
-test_manyunits: test_manyunits.$(EXEEXT)
-test_manyunits.$(EXEEXT): test_manyunits1.cpp test_manyunits2.cpp
-	$(COMPILER) $(STXXL_COMPILER_OPTIONS) -c test_manyunits1.cpp
-	$(COMPILER) $(STXXL_COMPILER_OPTIONS) -c test_manyunits2.cpp
-	$(LINKER) test_manyunits1.$(OBJEXT) test_manyunits2.$(OBJEXT) $(OUT)test_manyunits.$(EXEEXT) $(STXXL_LINKER_OPTIONS)
-
-
 test_sort: test_sort.$(EXEEXT)
 test_sort.$(EXEEXT): test_sort.cpp $(DEPENDENCIES)
 	$(COMPILER) $(STXXL_COMPILER_OPTIONS) -c test_sort.cpp -DSTXXL_VERBOSE_LEVEL=0
@@ -61,7 +54,11 @@ sort_file: sort_file.$(EXEEXT)
 sort_file.$(EXEEXT): sort_file.cpp $(DEPENDENCIES)
 	$(COMPILER) $(STXXL_COMPILER_OPTIONS) -c sort_file.cpp
 	$(LINKER)  sort_file.$(OBJEXT) $(OUT)sort_file.$(EXEEXT) $(STXXL_LINKER_OPTIONS)
-	
+
+copy_and_sort_file: copy_and_sort_file.$(EXEEXT)
+copy_and_sort_file.$(EXEEXT): copy_and_sort_file.cpp $(DEPENDENCIES)
+	$(COMPILER) $(STXXL_COMPILER_OPTIONS) -c copy_and_sort_file.cpp
+	$(LINKER) copy_and_sort_file.$(OBJEXT) $(OUT)copy_and_sort_file.$(EXEEXT) $(STXXL_LINKER_OPTIONS)
 
 test_asch: test_asch.$(EXEEXT)
 test_asch.$(EXEEXT): test_asch.cpp $(DEPENDENCIES)
@@ -83,6 +80,11 @@ test_random_shuffle.$(EXEEXT): test_random_shuffle.cpp $(DEPENDENCIES)
 	$(COMPILER) $(STXXL_COMPILER_OPTIONS) -c test_random_shuffle.cpp -DSTXXL_VERBOSE_LEVEL=0
 	$(LINKER)  test_random_shuffle.$(OBJEXT) $(OUT)test_random_shuffle.$(EXEEXT) $(STXXL_LINKER_OPTIONS)
 
+test_bad_cmp: test_bad_cmp.$(EXEEXT)
+test_bad_cmp.$(EXEEXT): test_bad_cmp.cpp $(DEPENDENCIES)
+	$(COMPILER) $(STXXL_COMPILER_OPTIONS) -c test_bad_cmp.cpp -DSTXXL_VERBOSE_LEVEL=0
+	$(LINKER)  test_bad_cmp.$(OBJEXT) $(OUT)test_bad_cmp.$(EXEEXT) $(STXXL_LINKER_OPTIONS)
+
 
 clean:
-	$(RM) *.$(OBJEXT) *.$(EXEEXT)
+	$(RM) $(CLEAN_TARGETS)

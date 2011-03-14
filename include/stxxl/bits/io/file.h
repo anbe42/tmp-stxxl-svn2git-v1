@@ -4,7 +4,8 @@
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
  *  Copyright (C) 2002 Roman Dementiev <dementiev@mpi-sb.mpg.de>
- *  Copyright (C) 2008 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
+ *  Copyright (C) 2008, 2010 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
+ *  Copyright (C) 2008, 2009 Johannes Singler <singler@ira.uka.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -66,12 +67,15 @@
 #endif
 
 
+#include <cassert>
+
+#include <stxxl/bits/libstxxl.h>
 #include <stxxl/bits/namespace.h>
 #include <stxxl/bits/noncopyable.h>
-#include <stxxl/bits/common/utils.h>
 #include <stxxl/bits/common/exceptions.h>
 #include <stxxl/bits/common/mutex.h>
 #include <stxxl/bits/io/request.h>
+#include <stxxl/bits/io/request_ptr.h>
 
 
 __STXXL_BEGIN_NAMESPACE
@@ -85,8 +89,6 @@ __STXXL_BEGIN_NAMESPACE
 //! base on various file systems or even remote storage interfaces
 class file : private noncopyable
 {
-    int id;
-
     mutex request_ref_cnt_mutex;
     int request_ref_cnt;
 
@@ -94,7 +96,7 @@ protected:
     //! \brief Initializes file object
     //! \param _id file identifier
     //! \remark Called in implementations of file
-    file(int _id) : id(_id), request_ref_cnt(0) { }
+    file() : request_ref_cnt(0) { }
 
 public:
     // the offset of a request, also the size of the file
@@ -113,28 +115,34 @@ public:
         RDWR = 4,                           //!< read and write of the file are allowed
         CREAT = 8,                          //!< in case file does not exist no error occurs and file is newly created
         DIRECT = 16,                        //!< I/Os proceed bypassing file system buffers, i.e. unbuffered I/O
-        TRUNC = 32                          //!< once file is opened its length becomes zero
+        TRUNC = 32,                         //!< once file is opened its length becomes zero
+        SYNC = 64,                          //!< open the file with O_SYNC | O_DSYNC | O_RSYNC flags set
+        NO_LOCK = 128,                      //!< do not aquire an exclusive lock by default
     };
 
-    //! \brief Schedules asynchronous read request to the file
+    static const int DEFAULT_QUEUE = -1;
+    static const int NO_QUEUE = -2;
+    static const int NO_ALLOCATOR = -1;
+
+    //! \brief Schedules an asynchronous read request to the file
     //! \param buffer pointer to memory buffer to read into
-    //! \param pos starting file position to read
+    //! \param pos file position to start read from
     //! \param bytes number of bytes to transfer
     //! \param on_cmpl I/O completion handler
-    //! \return \c request_ptr object, that can be used to track the status of the operation
+    //! \return \c request_ptr request object, which can be used to track the status of the operation
     virtual request_ptr aread(void * buffer, offset_type pos, size_type bytes,
                               const completion_handler & on_cmpl) = 0;
 
-    //! \brief Schedules asynchronous write request to the file
+    //! \brief Schedules an asynchronous write request to the file
     //! \param buffer pointer to memory buffer to write from
     //! \param pos starting file position to write
     //! \param bytes number of bytes to transfer
     //! \param on_cmpl I/O completion handler
-    //! \return \c request_ptr object, that can be used to track the status of the operation
+    //! \return \c request_ptr request object, which can be used to track the status of the operation
     virtual request_ptr awrite(void * buffer, offset_type pos, size_type bytes,
                                const completion_handler & on_cmpl) = 0;
 
-    virtual void serve(const request * req) throw(io_error) = 0;
+    virtual void serve(const request * req) throw (io_error) = 0;
 
     void add_request_ref()
     {
@@ -156,40 +164,43 @@ public:
     }
 
     //! \brief Changes the size of the file
-    //! \param newsize value of the new file size
+    //! \param newsize new file size
     virtual void set_size(offset_type newsize) = 0;
     //! \brief Returns size of the file
     //! \return file size in bytes
     virtual offset_type size() = 0;
-    //! \brief deprecated, use \c stxxl::file::get_id() instead
-    __STXXL_DEPRECATED(int get_disk_number() const)
+    //! \brief Returns the identifier of the file's queue
+    //! \remark Files allocated on the same physical device usually share the same queue
+    //! \return queue number
+    virtual int get_queue_id() const = 0;
+    //! \brief Returns the file's allocator
+    //! \return allocator number
+    virtual int get_allocator_id() const = 0;
+
+    virtual int get_physical_device_id() const
     {
-        return get_id();
-    }
-    //! \brief Returns file's identifier
-    //! \remark might be used as disk's id in case disk to file mapping
-    //! \return integer file identifier, passed as constructor parameter
-    int get_id() const
-    {
-        return id;
+        return get_queue_id();
     }
 
-    //! \brief Locks file for reading and writing (aquires a lock in the file system)
+    //! \brief Locks file for reading and writing (acquires a lock in the file system)
     virtual void lock() = 0;
 
-    //! \brief Some specialized file types may need to know freed regions
-    virtual void delete_region(offset_type offset, size_type size)
+    //! \brief Discard a region of the file (mark it unused)
+    //! some specialized file types may need to know freed regions
+    virtual void discard(offset_type offset, offset_type size)
     {
-        UNUSED(offset);
-        UNUSED(size);
+        STXXL_UNUSED(offset);
+        STXXL_UNUSED(size);
     }
 
     virtual void export_files(offset_type offset, offset_type length, std::string prefix)
     {
-        UNUSED(offset);
-        UNUSED(length);
-        UNUSED(prefix);
+        STXXL_UNUSED(offset);
+        STXXL_UNUSED(length);
+        STXXL_UNUSED(prefix);
     }
+
+    virtual void remove() { }
 
     virtual ~file()
     {

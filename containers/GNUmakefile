@@ -25,7 +25,8 @@ LIBS_BDB			?= -ldb_cxx
 TPIE_ROOT			?= /usr/local/tpie
 TPIE_ROOT			?= $(HOME)/projects/tpie_091905
 TPIE_ROOT			?= $(HOME)/work/lib/tpie
-CPPFLAGS_TPIE			?= -I$(TPIE_ROOT)/include -DHAVE_CONFIG_H -Wno-error
+TPIE_ROOT			?= $(HOME)/work/lib/$(UNAME_M)/tpie
+CPPFLAGS_TPIE			?= -I$(TPIE_ROOT)/include -DHAVE_CONFIG_H
 LIBS_TPIE			?= -L$(TPIE_ROOT)/lib -ltpie
 
 LEDA_COMPILER			?= g++-2.95
@@ -48,9 +49,8 @@ LEDA_SM_LDLIBS			?= -lW -lP -lG -lL -lX11 -lm -lLEDA-SM
 #stack_benchmark.$o:	CPPFLAGS += -DNDEBUG
 #pq_benchmark.$o:	CPPFLAGS += -DNDEBUG
 test_many_stacks.$o:	CPPFLAGS += -DSTXXL_VERBOSE_LEVEL=1
-test_ext_merger.$o:	CPPFLAGS += -DSTXXL_VERBOSE_LEVEL=2
-test_ext_merger2.$o:	CPPFLAGS += -DSTXXL_VERBOSE_LEVEL=3
-bench_pqueue.$o:	CPPFLAGS += -DSTXXL_VERBOSE_LEVEL=1
+test_ext_merger.$o:	CPPFLAGS += -DSTXXL_VERBOSE_LEVEL=1
+test_ext_merger2.$o:	CPPFLAGS += -DSTXXL_VERBOSE_LEVEL=1
 
 
 $(TESTS_BDB:=.$(bin)):	CPPFLAGS += $(CPPFLAGS_TPIE) $(CPPFLAGS_BDB)
@@ -67,24 +67,49 @@ leda_sm_stack_benchmark.$(bin): leda_sm_stack_benchmark.cpp GNUmakefile
 	$(LEDA_COMPILER) -o leda_sm_stack_benchmark.$(EXEEXT) leda_sm_stack_benchmark.$(OBJEXT) $(LEDA_SM_LDFLAGS) $(LEDA_SM_LDLIBS)
 
 
+ifeq ($(strip $(USE_PMODE)),yes)
+# ICPC 12.0: internal error: backend signals (issue 613286)
+$(call reduce_optimization,3,0,test_pqueue,Version_12.0,any,any)
+$(call reduce_optimization,3,0,test_ext_merger2,Version_12.0,any,any)
+$(call reduce_optimization,3,0,bench_pqueue,Version_12.0,any,any)
+$(call reduce_optimization,3,0,monotonic_pq,Version_12.0,any,any)
+$(call reduce_optimization,3,0,pq_benchmark,Version_12.0,any,any)
+$(call reduce_optimization,3,0,btree/test_corr_insert_erase,Version_12.0,any,any)
+$(call reduce_optimization,3,0,btree/test_corr_insert_scan,Version_12.0,any,any)
+$(call reduce_optimization,3,0,berkeley_db_benchmark,Version_12.0,any,any)
+endif
+
 ifeq ($(strip $(USE_MCSTL)),yes)
 # PR33361: internal compiler error: in find_outermost_region_in_block, at tree-cfg.c:4803
 # when using g++-4.2 -fopenmp -O3. Fixed in g++-4.3, wontfix in g++-4.2.
 ifneq ($(strip $(USE_BOOST)),yes)
-$(call reduce_optimization,3,0,test_iterators,gcc_version_4.2,64-bit,any)
+$(call reduce_optimization,3,2,berkeley_db_benchmark,gcc_version_4.2,32-bit,any)
 $(call reduce_optimization,3,2,test_map,gcc_version_4.2,64-bit,any)
-$(call reduce_optimization,3,0,test_map,gcc_version_4.2,32-bit,any)
+$(call reduce_optimization,3,1,test_map,gcc_version_4.2,32-bit,any)
+$(call reduce_optimization,3,0,test_map_random,gcc_version_4.2,64-bit,any)
 $(call reduce_optimization,3,0,test_map_random,gcc_version_4.2,32-bit,any)
 $(call reduce_optimization,3,0,btree/test_btree,gcc_version_4.2,64-bit,any)
 $(call reduce_optimization,3,0,btree/test_btree,gcc_version_4.2,32-bit,any)
-$(call reduce_optimization,3,0,btree/test_const_scan,gcc_version_4.2,any,any)
+$(call reduce_optimization,3,0,btree/test_const_scan,gcc_version_4.2,64-bit,any)
+$(call reduce_optimization,3,0,btree/test_const_scan,gcc_version_4.2,32-bit,any)
 else
-$(call reduce_optimization,3,2,test_map,gcc_version_4.2,64-bit,any)
-$(call reduce_optimization,3,2,btree/test_btree,gcc_version_4.2,64-bit,any)
-$(call reduce_optimization,3,2,btree/test_corr_insert_scan,gcc_version_4.2,64-bit,any)
-$(call reduce_optimization,3,1,btree/test_corr_insert_erase,gcc_version_4.2,64-bit,any)
-$(call reduce_optimization,3,2,btree/test_corr_insert_erase,gcc_version_4.2,32-bit,any)
+$(call reduce_optimization,3,0,berkeley_db_benchmark,gcc_version_4.2,64-bit,any)
+$(call reduce_optimization,3,0,berkeley_db_benchmark,gcc_version_4.2,32-bit,any)
 endif
+
+# ICPC 12.0: internal error: backend signals (issue 613286)
+$(call reduce_optimization,3,0,test_pqueue,Version_12.0,any,any)
+$(call reduce_optimization,3,0,test_ext_merger,Version_12.0,any,any)
+$(call reduce_optimization,3,0,test_ext_merger2,Version_12.0,any,any)
+$(call reduce_optimization,3,0,bench_pqueue,Version_12.0,any,any)
+$(call reduce_optimization,3,0,monotonic_pq,Version_12.0,any,any)
+$(call reduce_optimization,3,0,pq_benchmark,Version_12.0,any,any)
+$(call reduce_optimization,3,0,test_map_random,Version_12.0,any,any)
+$(call reduce_optimization,3,0,btree/test_btree,Version_12.0,any,any)
+$(call reduce_optimization,3,0,btree/test_const_scan,Version_12.0,any,any)
+$(call reduce_optimization,3,0,btree/test_corr_insert_erase,Version_12.0,any,any)
+$(call reduce_optimization,3,0,btree/test_corr_insert_scan,Version_12.0,any,any)
+$(call reduce_optimization,3,0,berkeley_db_benchmark,Version_12.0,any,any)
 
 # ICPC 11.0: internal error: 0_1374 (issue 539748)
 $(call reduce_optimization,3,1,btree/test_btree,Version_11.0,any,any)
@@ -98,6 +123,6 @@ $(call reduce_optimization,3,1,btree/test_corr_insert_scan,Version_10.0,32-bit,a
 endif
 
 clean::
-	$(RM) btree/*.$o btree/*.$d btree/*.dT
+	$(RM) btree/*.$o btree/*.$(o:.o=).d btree/*.dT
 
 -include btree/*.d

@@ -4,6 +4,7 @@
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
  *  Copyright (C) 2006 Roman Dementiev <dementiev@ira.uka.de>
+ *  Copyright (C) 2008, 2009 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -34,18 +35,18 @@ namespace btree
 //! \addtogroup stlcont
 //! \{
 
-//! \brief Priority queue type generator
+//! \brief External associative container.
 
-//! Template parameters:
-//! - KeyType key type
-//! - DataType data type
-//! - CompareType comparison type used to determine
+//! \tparam KeyType key type (POD with no references to internal memory)
+//! \tparam DataType data type (POD with no references to internal memory)
+//! \tparam CompareType comparison type used to determine
 //! whether a key is smaller than another one.
 //! If CompareType()(x,y) is true, then x is smaller than y.
 //! CompareType must also provide a static \c max_value method, that returns
 //! a value of type KeyType that is
 //! larger than any key stored in map : i.e. for all \b x in map holds
-//! CompareType()(x,CompareType::max_value()) <BR>
+//! CompareType()(x,CompareType::max_value())
+//!
 //! <BR>
 //! Example: :
 //! \verbatim
@@ -65,9 +66,9 @@ namespace btree
 //! \endverbatim
 //! Note that CompareType must define a strict weak ordering.
 //! (<A HREF="http://www.sgi.com/tech/stl/StrictWeakOrdering.html">see what it is</A>)
-//! - \c RawNodeSize size of internal nodes of map in bytes (btree implementation).
-//! - \c RawLeafSize size of leaves of map in bytes (btree implementation).
-//! - \c PDAllocStrategy parallel disk allocation strategy (\c stxxl::SR is recommended and default)
+//! \tparam RawNodeSize size of internal nodes of map in bytes (btree implementation).
+//! \tparam RawLeafSize size of leaves of map in bytes (btree implementation).
+//! \tparam PDAllocStrategy parallel disk allocation strategy (\c stxxl::SR is recommended and default)
 //!
 template <class KeyType,
           class DataType,

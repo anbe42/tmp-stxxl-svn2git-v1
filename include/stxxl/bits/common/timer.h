@@ -4,6 +4,8 @@
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
  *  Copyright (C) 2002, 2005 Roman Dementiev <dementiev@mpi-sb.mpg.de>
+ *  Copyright (C) 2007-2009 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
+ *  Copyright (C) 2008 Johannes Singler <singler@ira.uka.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -54,7 +56,7 @@ class timer
     inline double timestamp();
 
 public:
-    inline timer();
+    inline timer(bool start_immediately = false);
     inline void start();
     inline void stop();
     inline void reset();
@@ -63,8 +65,11 @@ public:
     inline double useconds();
 };
 
-timer::timer() : running(false), accumulated(0.)
-{ }
+timer::timer(bool start_immediately) : running(false), accumulated(0.)
+{
+    if (start_immediately)
+        start();
+}
 
 double timer::timestamp()
 {
@@ -116,3 +121,4 @@ double timer::seconds()
 __STXXL_END_NAMESPACE
 
 #endif // !STXXL_TIMER_HEADER
+// vim: et:ts=4:sw=4

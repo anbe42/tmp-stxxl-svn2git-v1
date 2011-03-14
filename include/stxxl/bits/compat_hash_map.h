@@ -5,7 +5,8 @@
  *
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
- *  Copyright (C) 2008 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
+ *  Copyright (C) 2008, 2010 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
+ *  Copyright (C) 2009, 2010 Johannes Singler <singler@kit.edu>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -20,6 +21,9 @@
  #include <unordered_map>
 #elif defined(BOOST_MSVC)
  #include <hash_map>
+#elif defined(__GNUG__) && ((__GNUC__ * 10000 + __GNUC_MINOR__ * 100) >= 40200) && \
+    (!defined(__ICC) || (__ICC > 1200))
+ #include <tr1/unordered_map>
 #else
  #include <ext/hash_map>
 #endif
@@ -35,6 +39,9 @@ struct compat_hash {
     typedef std::hash<_Tp> result;
 #elif defined(BOOST_MSVC)
     typedef stdext::hash_compare<_Tp> result;
+#elif defined(__GNUG__) && ((__GNUC__ * 10000 + __GNUC_MINOR__ * 100) >= 40200) && \
+    (!defined(__ICC) || (__ICC > 1200))
+    typedef std::tr1::hash<_Tp> result;
 #else
     typedef __gnu_cxx::hash<_Tp> result;
 #endif
@@ -46,6 +53,9 @@ struct compat_hash_map {
     typedef std::unordered_map<_Key, _Tp, _Hash> result;
 #elif defined(BOOST_MSVC)
     typedef stdext::hash_map<_Key, _Tp, _Hash> result;
+#elif defined(__GNUG__) && ((__GNUC__ * 10000 + __GNUC_MINOR__ * 100) >= 40200) && \
+    (!defined(__ICC) || (__ICC > 1200))
+    typedef std::tr1::unordered_map<_Key, _Tp, _Hash> result;
 #else
     typedef __gnu_cxx::hash_map<_Key, _Tp, _Hash> result;
 #endif

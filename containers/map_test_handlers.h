@@ -5,6 +5,7 @@
  *
  *  Copyright (C) 2004, 2005 Thomas Nowak <t.nowak@imail.de>
  *  Copyright (C) 2006 Roman Dementiev <dementiev@ira.uka.de>
+ *  Copyright (C) 2010 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -26,11 +27,11 @@ __STXXL_BEGIN_NAMESPACE
 // ***********************************************
 
 template <typename MAPTYPE>
-bool there(MAPTYPE & map_, const typename MAPTYPE::key_type & key, typename MAPTYPE::mapped_type data)
+bool there(const MAPTYPE & map_, const typename MAPTYPE::key_type & key, const typename MAPTYPE::mapped_type & data)
 {
-    if (!((*map_.find(key)).second == data))
+    typename MAPTYPE::const_iterator iter = map_.find(key);
+    if (!(iter->second == data))
     {
-        typename MAPTYPE::iterator iter = map_.find(key);
         STXXL_VERBOSE2("iter=(" << (*iter).first << ":" << (*iter).second << ")");
         STXXL_VERBOSE2("key=" << key);
         STXXL_VERBOSE2("data=" << data);
@@ -44,7 +45,7 @@ bool there(MAPTYPE & map_, const typename MAPTYPE::key_type & key, typename MAPT
 // ***********************************************
 
 template <typename MAPTYPE>
-bool is_equal_end(MAPTYPE & map_, typename MAPTYPE::iterator & iter)
+bool is_equal_end(const MAPTYPE & map_, typename MAPTYPE::const_iterator & iter)
 {
     return iter == map_.end();
 }
@@ -70,7 +71,7 @@ bool is_same(const value_type & v1, const value_type & v2)
 // ***********************************************
 
 template <typename MAPTYPE>
-bool not_there(MAPTYPE & map_, const typename MAPTYPE::key_type & key)
+bool not_there(const MAPTYPE & map_, const typename MAPTYPE::key_type & key)
 {
     return map_.find(key) == map_.end();
 }
@@ -80,7 +81,7 @@ bool not_there(MAPTYPE & map_, const typename MAPTYPE::key_type & key)
 // ***********************************************
 
 template <typename MAPTYPE>
-bool is_empty(MAPTYPE & map_)
+bool is_empty(const MAPTYPE & map_)
 {
     return map_.empty();
 }
@@ -106,7 +107,7 @@ bool is_end(const MAPTYPE & map_, typename MAPTYPE::const_iterator & iter)
 // ***********************************************
 
 template <typename MAPTYPE>
-bool is_size(MAPTYPE & map_, const typename MAPTYPE::size_type & size)
+bool is_size(const MAPTYPE & map_, const typename MAPTYPE::size_type size)
 {
     return map_.size() == size;
 }

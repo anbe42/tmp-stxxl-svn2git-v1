@@ -4,6 +4,7 @@
  *  Part of the STXXL. See http://stxxl.sourceforge.net
  *
  *  Copyright (C) 2003 Roman Dementiev <dementiev@mpi-sb.mpg.de>
+ *  Copyright (C) 2009 Andreas Beckmann <beckmann@cs.uni-frankfurt.de>
  *
  *  Distributed under the Boost Software License, Version 1.0.
  *  (See accompanying file LICENSE_1_0.txt or copy at
@@ -59,13 +60,12 @@ my_type * make_sequence(dummy_merger & dummy, int l)
 
 int main()
 {
-    stxxl::prefetch_pool<block_type> p_pool(1);
-    stxxl::write_pool<block_type> w_pool(2);
+    stxxl::read_write_pool<block_type> pool(1, 2);
     int cnt = 0;
     dummy_merger dummy(cnt);
     std::vector<my_type> output(1024 * 3);
 
-    ext_merger<block_type, my_cmp, 5> merger(&p_pool, &w_pool);
+    ext_merger<block_type, my_cmp, 5> merger(&pool);
     merger.insert_segment(dummy, 1024 * 3);
     cnt = 20;
     merger.insert_segment(dummy, 1024 * 4);
