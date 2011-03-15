@@ -448,7 +448,37 @@ namespace sort_local
 
                     STXXL_VERBOSE1("after merge");
 
+#if 0
                     sort_helper::refill_or_remove_empty_sequences(seqs, buffers, prefetcher);
+#else
+                    //gather consumed blocks
+                    std::vector<block_type*> consumed_blocks;
+                     for (seqs_size_type i = 0; i < seqs.size(); i++)
+                     {
+                        if (seqs[i].first == seqs[i].second && !seq_buffers[i].empty())            //run i has run empty
+                         {
+                            consumed_blocks.push_back(seq_buffers[i].front());
+
+                            seq_buffers[i].pop();
+                            if(!seq_buffers[i].empty())
+                                seqs[i] = std::make_pair(seq_buffers[i].front()->begin(), seq_buffers[i].front()->end());
+                             else
+                                seqs[i] = std::make_pair<typename block_type::iterator, typename block_type::iterator>(NULL, NULL);
+                         }
+                     }
+ 
+                    //refill consumed blocks
+                    while(!consumed_blocks.empty() && prefetcher.block_consumed(consumed_blocks.back()))
+                    {
+                        int seq_number = seq_of_block[consume_seq[current_block++]];
+                        seq_buffers[seq_number].push(consumed_blocks.back());
+                        seqs[seq_number] = std::make_pair(seq_buffers[seq_number].front()->begin(), seq_buffers[seq_number].front()->end());
+                        STXXL_VERBOSE1("pull block   " << consumed_blocks.back() << " " << seq_number << " " << seq_buffers[seq_number].size());
+
+                        consumed_blocks.pop_back();
+                    }
+#endif
+                } while (rest > 0);
 
  #if STXXL_CHECK_ORDER_IN_SORTS
                 if (!stxxl::is_sorted(out_buffer->begin(), out_buffer->end(), cmp))
